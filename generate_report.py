@@ -194,6 +194,102 @@ for row in ws3.iter_rows(min_row=2, values_only=True):
     })
 
 # ============================================================
+# 计算核心汇总数据
+# ============================================================
+# 找出上一月
+all_months_sorted_float = sorted([float(m) for m in all_months_sorted])
+CURRENT_MONTH_FLOAT = float(CURRENT_MONTH)
+prev_month_float = None
+for m in all_months_sorted_float:
+    if m < CURRENT_MONTH_FLOAT:
+        prev_month_float = m
+    else:
+        break
+prev_month_str = str(prev_month_float) if prev_month_float else None
+
+# 逐月逐人员统计（含分组）
+from collections import defaultdict as dd
+person_deduct_by_month = dd(lambda: dd(int))
+person_bonus_by_month = dd(lambda: dd(int))
+for r in records:
+    m = r['月份']
+    p = r['人员']
+    is_deduct = r['是否扣分']
+    if not m or not p:
+        continue
+    if is_deduct == '是':
+        person_deduct_by_month[m][p] += 1
+    else:
+        person_bonus_by_month[m][p] += 1
+
+# 人员分组
+person_group_final = {}
+for d in deduct_data:
+    person_group_final[d['name']] = d['group']
+
+cur_deduct = CURRENT_DEDUCT_COUNT
+cur_bonus = CURRENT_BONUS_COUNT
+prev_deduct = 0
+prev_bonus = 0
+if prev_month_str:
+    prev_deduct = sum(person_deduct_by_month.get(prev_month_str, {}).values())
+    prev_bonus = sum(person_bonus_by_month.get(prev_month_str, {}).values())
+
+def calc_hb(cur, prev):
+    if prev == 0:
+        return (cur, 'up') if cur > 0 else (0, 'same')
+    diff = cur - prev
+    if diff > 0: return (diff, 'up')
+    elif diff < 0: return (-diff, 'down')
+    return (0, 'same')
+
+hb_deduct = calc_hb(cur_deduct, prev_deduct)
+hb_bonus = calc_hb(cur_bonus, prev_bonus)
+
+# 当月小组维度
+group_cur = dd(lambda: {'deduct': 0, 'bonus': 0})
+group_prev = dd(lambda: {'deduct': 0, 'bonus': 0})
+for r in records:
+    m = r['月份']
+    p = r['人员']
+    is_deduct = r['是否扣分']
+    if not m or not p: continue
+    g = get_group(p, '')
+    if not g: continue
+    if is_deduct == '是':
+        if str(m) == CURRENT_MONTH: group_cur[g]['deduct'] += 1
+        elif prev_month_str and str(m) == prev_month_str: group_prev[g]['deduct'] += 1
+    else:
+        if str(m) == CURRENT_MONTH: group_cur[g]['bonus'] += 1
+        elif prev_month_str and str(m) == prev_month_str: group_prev[g]['bonus'] += 1
+
+group_summary = {}
+for g in sorted(set(list(group_cur.keys()) + list(group_prev.keys()))):
+    c = group_cur.get(g, {'deduct': 0, 'bonus': 0})
+    p = group_prev.get(g, {'deduct': 0, 'bonus': 0})
+    group_summary[g] = {
+        'deduct': c['deduct'], 'bonus': c['bonus'],
+        'hb_deduct': calc_hb(c['deduct'], p['deduct']),
+        'hb_bonus': calc_hb(c['bonus'], p['bonus']),
+    }
+
+current_persons_d = person_deduct_by_month.get(CURRENT_MONTH, {})
+current_persons_b = person_bonus_by_month.get(CURRENT_MONTH, {})
+top3_deduct = sorted(current_persons_d.items(), key=lambda x: -x[1])[:3]
+top3_bonus = sorted(current_persons_b.items(), key=lambda x: -x[1])[:3]
+
+core_summary = {
+    'current_month': CURRENT_MONTH_DISPLAY,
+    'prev_month': month_display(prev_month_str) if prev_month_str else None,
+    'deduct': cur_deduct, 'bonus': cur_bonus,
+    'hb_deduct': {'diff': hb_deduct[0], 'direction': hb_deduct[1]},
+    'hb_bonus': {'diff': hb_bonus[0], 'direction': hb_bonus[1]},
+    'groups': group_summary,
+    'top3_deduct': [{'name': p, 'group': person_group_final.get(p, ''), 'count': c} for p, c in top3_deduct],
+    'top3_bonus': [{'name': p, 'group': person_group_final.get(p, ''), 'count': c} for p, c in top3_bonus],
+}
+
+# ============================================================
 # 4. 读取月度差错细项数量趋势
 # ============================================================
 ws4 = wb[names[4]]
@@ -581,7 +677,8 @@ viz_data = {
     'chart4_weekly_group_deduct': {
         'weeks': [],
         'groups': {}
-    }
+    },
+    'core_summary': core_summary
 }
 
 # Fill chart 1
@@ -700,6 +797,72 @@ for group_name, gdata in weekly_group_data.items():
         if wk_key in gdata['weeks']:
             g_weekly[jwi] = gdata['weeks'][wk_key]['deduct']
     viz_data['chart4_weekly_group_deduct']['groups'][group_name] = g_weekly
+
+# 计算小组月度扣分/加分数据（用于小组对比图表）
+# 临时处理方式：从records中按人员和月份聚合
+from collections import defaultdict as dd
+# Categorize persons into groups
+person_to_group = {}
+for d in deduct_data:
+    gn = d.get('group', '')
+    if gn:
+        person_to_group[d['name']] = gn
+
+# Monthly group data: { group: { month_key: { 'deduct': n, 'bonus': n } } }
+monthly_group_data_detail = {}
+for r in records:
+    m = r['月份']
+    p = r['人员']
+    if not m or not p:
+        continue
+    gn = get_group(p, '')
+    if not gn:
+        continue
+    month_key = str(m)
+    if gn not in monthly_group_data_detail:
+        monthly_group_data_detail[gn] = {}
+    if month_key not in monthly_group_data_detail[gn]:
+        monthly_group_data_detail[gn][month_key] = {'deduct': 0, 'bonus': 0}
+    if r['是否扣分'] == '是':
+        monthly_group_data_detail[gn][month_key]['deduct'] += 1
+    else:
+        monthly_group_data_detail[gn][month_key]['bonus'] += 1
+
+# 构建小组对比数据
+group_names_list = sorted(monthly_group_data_detail.keys())
+monthly_groups_deduct = {}
+monthly_groups_bonus = {}
+for m in months_order:
+    mk = str(m)
+    for gn in group_names_list:
+        if gn not in monthly_groups_deduct:
+            monthly_groups_deduct[gn] = [0] * len(months_order)
+            monthly_groups_bonus[gn] = [0] * len(months_order)
+        mi = months_order.index(m)
+        if mk in monthly_group_data_detail.get(gn, {}):
+            monthly_groups_deduct[gn][mi] = monthly_group_data_detail[gn][mk]['deduct']
+            monthly_groups_bonus[gn][mi] = monthly_group_data_detail[gn][mk]['bonus']
+
+# 小组周度加分数据（chart4只有扣分，这里补充加分）
+weekly_groups_bonus = {}
+for group_name, gdata in weekly_group_data.items():
+    g_weekly_bonus = [0] * len(current_weeks_list)
+    for jwi, wi in enumerate(current_weeks_list):
+        wk_key = f'w{wi}'
+        if wk_key in gdata['weeks']:
+            g_weekly_bonus[jwi] = gdata['weeks'][wk_key]['bonus']
+    weekly_groups_bonus[group_name] = g_weekly_bonus
+
+viz_data['group_comparison'] = {
+    'months': [month_display(m) for m in months_order],
+    'weeks': current_week_names,
+    'week_dates': current_week_dates,
+    'group_names': group_names_list,
+    'monthly_deduct': monthly_groups_deduct,
+    'monthly_bonus': monthly_groups_bonus,
+    'weekly_deduct': viz_data['chart4_weekly_group_deduct']['groups'],
+    'weekly_bonus': weekly_groups_bonus,
+}
 
 # Save JSON data
 
