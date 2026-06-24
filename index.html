@@ -53,7 +53,7 @@ select.person-select:focus { border-color: #667eea; }
 
 <!-- 核心数据情况汇总 -->
 <div class="card full-width" style="margin-bottom:20px;">
-  <h3>&#128203; 核心数据情况汇总 <small>' + CURRENT_MONTH_DISPLAY + '</small></h3>
+  <h3>&#128203; 核心数据情况汇总 <small>' + CURRENT_MONTH_DISPLAY + ' | 下降排行·无差错人员·小组数据</small></h3>
   <div id="coreSummaryContent" style="font-size:14px;"></div>
 </div>
 
@@ -204,60 +204,141 @@ const GC_WEEKLY_BONUS = {"李师组": [1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
   // 核心汇总渲染
   var html = '';
+  var lastMi = CHART1.months.length - 1; // 当前月索引
+  var prevMi = lastMi - 1;                // 上月索引
 
-  // ① 当月总计
+  // ① 无扣分也无加分人员名单（当月）
   html += '<div style="margin-bottom:12px;">';
-  html += '<strong>① 当月总计：</strong> ';
-  html += '扣分 ' + d + ' 条、加分 ' + b + ' 条';
-  if (cs.prev_month) {
-    html += ' <span style="color:#999;font-size:12px;">（上月' + cs.prev_month + '：扣分' + (cs.hb_deduct ? (d - cs.hb_deduct.diff * (cs.hb_deduct.direction === 'down' ? -1 : 1)) : '?') + '、加分' + (cs.hb_bonus ? (b - cs.hb_bonus.diff * (cs.hb_bonus.direction === 'down' ? -1 : 1)) : '?') + '）</span>';
-  }
-  html += '</div>';
-
-  // ② 环比
-  html += '<div style="margin-bottom:12px;">';
-  html += '<strong>② 环比变化：</strong> ';
-  if (cs.prev_month) {
-    html += '扣分 ' + hbHTML(cs.hb_deduct) + '，加分 ' + hbHTML(cs.hb_bonus) + ' <span style="color:#999;font-size:12px;">（与' + cs.prev_month + '相比）</span>';
-  } else {
-    html += '暂无上月数据可比对';
-  }
-  html += '</div>';
-
-  // ③ 小组维度
-  html += '<div style="margin-bottom:12px;">';
-  html += '<strong>③ 小组维度：</strong> ';
-  var groups = cs.groups || {};
-  var gKeys = Object.keys(groups).sort();
-  if (gKeys.length > 0) {
-    gKeys.forEach(function(g) {
-      var info = groups[g];
-      html += '<span style="display:inline-block;margin:2px 8px 2px 0;padding:3px 10px;background:#f5f5f5;border-radius:8px;font-size:12px;">' + g + ': 扣分' + info.deduct + '、加分' + info.bonus;
-      if (info.hb_deduct && info.hb_deduct.direction !== 'same') {
-        html += ' | 扣分' + hbHTML(info.hb_deduct);
-      }
-      if (info.hb_bonus && info.hb_bonus.direction !== 'same') {
-        html += ' 加分' + hbHTML(info.hb_bonus);
-      }
-      html += '</span> ';
+  html += '<strong>① 无扣分也无加分人员：</strong> ';
+  var zeroPersons = [];
+  CHART1.persons.forEach(function(p, pi) {
+    var d = (CHART1.deduct[pi]||[])[lastMi]||0;
+    var b = (CHART1.bonus[pi]||[])[lastMi]||0;
+    if (d === 0 && b === 0) zeroPersons.push(p);
+  });
+  if (zeroPersons.length > 0) {
+    zeroPersons.forEach(function(p) {
+      html += '<span style="display:inline-block;margin:2px 4px;padding:2px 10px;background:#f0f0f0;border-radius:10px;font-size:12px;">' + p + '</span>';
     });
   } else {
-    html += '暂无数据';
+    html += '<span style="color:#999;font-size:12px;">无</span>';
   }
   html += '</div>';
 
-  // ④ TOP3
-  html += '<div>';
-  html += '<strong>④ 当月TOP3：</strong> ';
-  var t3d = cs.top3_deduct || [];
-  var t3b = cs.top3_bonus || [];
-  html += '扣分前三：';
-  t3d.forEach(function(p, i) {
-    html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#ffe0e0;border-radius:8px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ' + p.count + '次</span>';
+  // ② 月环比扣分下降人员前三
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>② 月环比扣分下降前三：</strong> ';
+  var monthlyImprovers = [];
+  CHART1.persons.forEach(function(p, pi) {
+    var cur = (CHART1.deduct[pi]||[])[lastMi]||0;
+    var prev = (CHART1.deduct[pi]||[])[prevMi]||0;
+    if (cur < prev) monthlyImprovers.push({name: p, group: CHART1.groups[pi]||'', decrease: prev - cur});
   });
-  html += ' | 加分前三：';
-  t3b.forEach(function(p, i) {
-    html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#e0ffe0;border-radius:8px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ' + p.count + '次</span>';
+  monthlyImprovers.sort(function(a, b) { return b.decrease - a.decrease; });
+  var top3m = monthlyImprovers.slice(0, 3);
+  if (top3m.length > 0) {
+    top3m.forEach(function(p, i) {
+      html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#e8f5e9;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ↓' + p.decrease + '条</span>';
+    });
+  } else {
+    html += '<span style="color:#999;font-size:12px;">无</span>';
+  }
+  html += '</div>';
+
+  // ③ 周环比扣分下降人员前三
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>③ 周环比扣分下降前三：</strong> ';
+  // 找到最后两个有数据的周
+  var activeWeeks = [];
+  ETD_WEEK_DATES.forEach(function(d, i) { if (d) activeWeeks.push(i); });
+  if (activeWeeks.length >= 2) {
+    var lastWk = activeWeeks[activeWeeks.length - 1];
+    var prevWk = activeWeeks[activeWeeks.length - 2];
+    var weeklyImprovers = [];
+    Object.keys(CHART2.personData).forEach(function(p) {
+      var pd = CHART2.personData[p];
+      var cur = (pd.deduct||[])[lastWk]||0;
+      var prev = (pd.deduct||[])[prevWk]||0;
+      if (cur < prev) weeklyImprovers.push({name: p, group: pd.group||'', decrease: prev - cur});
+    });
+    weeklyImprovers.sort(function(a, b) { return b.decrease - a.decrease; });
+    var top3w = weeklyImprovers.slice(0, 3);
+    if (top3w.length > 0) {
+      top3w.forEach(function(p, i) {
+        html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#e3f2fd;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ↓' + p.decrease + '条</span>';
+      });
+    } else {
+      html += '<span style="color:#999;font-size:12px;">无</span>';
+    }
+  } else {
+    html += '<span style="color:#999;font-size:12px;">数据不足</span>';
+  }
+  html += '</div>';
+
+  // ④ 月环比差错类型前三
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>④ 月环比扣分类型下降前三：</strong> ';
+  var etMonthlyChanges = [];
+  CHART3.errorTypes.forEach(function(et) {
+    var cur = (et.values||[])[lastMi]||0;
+    var prev = (et.values||[])[prevMi]||0;
+    if (cur < prev) etMonthlyChanges.push({name: et.name, decrease: prev - cur});
+  });
+  etMonthlyChanges.sort(function(a, b) { return b.decrease - a.decrease; });
+  var top3etm = etMonthlyChanges.slice(0, 3);
+  if (top3etm.length > 0) {
+    top3etm.forEach(function(et, i) {
+      html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#fff3e0;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + et.name + ' ↓' + et.decrease + '次</span>';
+    });
+  } else {
+    html += '<span style="color:#999;font-size:12px;">无</span>';
+  }
+  html += '</div>';
+
+  // ⑤ 周环比差错类型前三
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>⑤ 周环比扣分类型下降前三：</strong> ';
+  if (activeWeeks.length >= 2) {
+    var lastWkKey = ETD_WEEKS[activeWeeks[activeWeeks.length - 1]];
+    var prevWkKey = ETD_WEEKS[activeWeeks[activeWeeks.length - 2]];
+    var etWeeklyChanges = [];
+    ETD_ERROR_TYPES.forEach(function(et) {
+      if (!et) return;
+      var cur = 0, prev = 0;
+      if (ETD_WEEKLY[lastWkKey]) {
+        Object.keys(ETD_WEEKLY[lastWkKey]).forEach(function(p) {
+          cur += (ETD_WEEKLY[lastWkKey][p][et]||0);
+        });
+      }
+      if (ETD_WEEKLY[prevWkKey]) {
+        Object.keys(ETD_WEEKLY[prevWkKey]).forEach(function(p) {
+          prev += (ETD_WEEKLY[prevWkKey][p][et]||0);
+        });
+      }
+      if (cur < prev) etWeeklyChanges.push({name: et, decrease: prev - cur});
+    });
+    etWeeklyChanges.sort(function(a, b) { return b.decrease - a.decrease; });
+    var top3etw = etWeeklyChanges.slice(0, 3);
+    if (top3etw.length > 0) {
+      top3etw.forEach(function(et, i) {
+        html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#fce4ec;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + et.name + ' ↓' + et.decrease + '次</span>';
+      });
+    } else {
+      html += '<span style="color:#999;font-size:12px;">无</span>';
+    }
+  } else {
+    html += '<span style="color:#999;font-size:12px;">数据不足</span>';
+  }
+  html += '</div>';
+
+  // ⑥ 当月小组扣分/加分说明
+  html += '<div style="margin-bottom:8px;">';
+  html += '<strong>⑥ 当月小组扣分/加分：</strong> ';
+  var gs = CORE_SUMMARY.groups || {};
+  var gKeys = Object.keys(gs).sort();
+  gKeys.forEach(function(g) {
+    var info = gs[g];
+    html += '<span style="display:inline-block;margin:2px 8px 2px 0;padding:3px 12px;background:#f5f5f5;border-radius:10px;font-size:12px;">' + g + ': 扣分' + info.deduct + '条 / 加分' + info.bonus + '条</span>';
   });
   html += '</div>';
 
@@ -347,8 +428,11 @@ function updateChart1() {
       }
     });
   } else {
-    // Weekly mode
-    labels = ETD_WEEKS;
+    // Weekly mode - only active weeks (with dates)
+    var activeWeekIx = [];
+    ETD_WEEK_DATES.forEach(function(d, i) { if (d) activeWeekIx.push(i); });
+    var activeWeeks = activeWeekIx.map(function(i) { return ETD_WEEKS[i]; });
+    labels = activeWeeks;
     deductStackData = [];
     ETD_ERROR_TYPES.forEach(function(et, ei) {
       if (et === '') return;
