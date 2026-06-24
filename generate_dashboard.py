@@ -212,7 +212,7 @@ select.person-select:focus { border-color: #667eea; }
     <h3>&#128203; &#9313; 员工整体差错明细 <small>按月/周查看差错类型钻取</small></h3>
     <div class="toolbar">
       <label>维度：</label>
-      <select class="person-select" id="modeSelect8" onchange="updateChart8()">
+      <select class="person-select" id="modeSelect8" onchange="onChart8ModeChange()">
         <option value="monthly">月度</option>
         <option value="weekly">周度</option>
       </select>
@@ -225,7 +225,7 @@ select.person-select:focus { border-color: #667eea; }
 
   <!-- Chart 4: 小组对比分析 -->
   <div class="card full-width">
-    <h3>&#128101; &#9314; 小组对比分析 <small>田敏组 vs 李师组，可切换月度/周度、柱形/折线</small></h3>
+    <h3>&#128101; &#9314; 小组对比分析 <small>田敏组 vs 李师组，可切换月度/周度、柱形/折线、筛选小组</small></h3>
     <div class="toolbar">
       <label>维度：</label>
       <select class="person-select" id="dimSelect4" onchange="updateChart4()">
@@ -237,6 +237,10 @@ select.person-select:focus { border-color: #667eea; }
         <option value="bar" selected>柱状图</option>
         <option value="line">折线图</option>
       </select>
+      <label>小组：</label>
+      <select class="person-select" id="groupSelect4" onchange="updateChart4()">
+        <option value="all">全部小组</option>
+      </select>
     </div>
     <div id="chart4Info" style="margin-bottom:10px;font-size:13px;color:#555;display:none;"></div>
     <button id="resetChart4Btn" onclick="resetChart4Drill()" style="display:none;background:#e74c3c;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;margin-bottom:8px;">&#10005; 返回小组概览</button>
@@ -245,7 +249,7 @@ select.person-select:focus { border-color: #667eea; }
 
   <!-- Chart 5: 小组环比变化 -->
   <div class="card full-width">
-    <h3>&#128202; &#9315; 小组扣分/加分条数 <small>月度/周度切换，柱形/折线，可筛选小组</small></h3>
+    <h3>&#128202; &#9315; 小组扣分/加分 <small>月度/周度切换，柱形/折线，可筛选小组、切换条数/环比</small></h3>
     <div class="toolbar">
       <label>维度：</label>
       <select class="person-select" id="dimSelect5" onchange="updateChart5()">
@@ -256,6 +260,11 @@ select.person-select:focus { border-color: #667eea; }
       <select class="person-select" id="chartType5" onchange="updateChart5()">
         <option value="bar" selected>柱状图</option>
         <option value="line">折线图</option>
+      </select>
+      <label>显示：</label>
+      <select class="person-select" id="viewMode5" onchange="updateChart5()">
+        <option value="count" selected>条数</option>
+        <option value="hb">环比</option>
       </select>
       <label>小组：</label>
       <select class="person-select" id="groupSelect5" onchange="updateChart5()">
@@ -682,12 +691,20 @@ function populateChart8Periods() {
       sel.add(new Option(m, i));
     });
   } else {
+    // Only show weeks that have dates (active weeks)
     ETD_WEEKS.forEach(function(w, i) {
       var d = ETD_WEEK_DATES[i] || "";
-      sel.add(new Option(fmtWeek(w, d), i));
+      if (d) {
+        sel.add(new Option(fmtWeek(w, d), i));
+      }
     });
   }
   sel.selectedIndex = 0;
+}
+
+function onChart8ModeChange() {
+  populateChart8Periods();
+  updateChart8();
 }
 
 var chart8Colors = ["#CC0000","#FF6600","#0033CC","#9900CC","#009999","#33AA00","#CC6600","#006699","#993366","#669900","#CC0066"];
@@ -728,7 +745,6 @@ function updateChart8() {
   var ctx = document.getElementById("chart8").getContext("2d");
   if (window.chart8Instance) window.chart8Instance.destroy();
 
-  populateChart8Periods();
   var result = getChart8Data();
   if (result.persons.length === 0) {
     ctx.canvas.parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:60px 0;">该时段暂无扣分数据</p>';
@@ -833,10 +849,33 @@ function updateChart4() {
   document.getElementById('resetChart4Btn').style.display = 'none';
   var dim = document.getElementById('dimSelect4').value;
   var chartType = document.getElementById('chartType4').value;
-  var labels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
-  var groups = GC_GROUP_NAMES;
-  var deductData = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
-  var bonusData = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+  var selGroup = document.getElementById('groupSelect4').value;
+
+  // Filter labels and data for weekly mode: only active weeks (with dates)
+  var rawLabels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
+  var rawDeduct = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
+  var rawBonus = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+
+  var labels, deductData, bonusData, activeIx;
+  if (dim === 'weekly') {
+    activeIx = [];
+    GC_WEEK_DATES.forEach(function(d, i) { if (d) activeIx.push(i); });
+    labels = activeIx.map(function(i) { return rawLabels[i]; });
+    deductData = {};
+    bonusData = {};
+    GC_GROUP_NAMES.forEach(function(g) {
+      deductData[g] = activeIx.map(function(i) { return (rawDeduct[g]||[])[i]||0; });
+      bonusData[g] = activeIx.map(function(i) { return (rawBonus[g]||[])[i]||0; });
+    });
+  } else {
+    labels = rawLabels;
+    deductData = rawDeduct;
+    bonusData = rawBonus;
+  }
+  // Store active indices for drill-down click handler
+  window.chart4ActiveIx = activeIx || null;
+
+  var groups = selGroup === 'all' ? GC_GROUP_NAMES : [selGroup];
   var datasets = [];
   groups.forEach(function(g, i) {
     var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
@@ -869,16 +908,18 @@ function updateChart4() {
         var groupName = parts[0];
         var type = parts[1];
         var dim = document.getElementById('dimSelect4').value;
+        // Map filtered index back to original index for weekly mode
+        var origPeriodIdx = (dim === 'weekly' && window.chart4ActiveIx) ? window.chart4ActiveIx[periodIdx] : periodIdx;
         var drillData = [];
         CHART1.persons.forEach(function(p, pi) {
           if (CHART1.groups[pi] !== groupName) return;
           var count = 0;
           if (dim === 'monthly') {
-            count = type === '扣分' ? ((CHART1.deduct[pi]||[])[periodIdx]||0) : ((CHART1.bonus[pi]||[])[periodIdx]||0);
+            count = type === '扣分' ? ((CHART1.deduct[pi]||[])[origPeriodIdx]||0) : ((CHART1.bonus[pi]||[])[origPeriodIdx]||0);
           } else {
             var pData = CHART2.personData[p];
             if (!pData) return;
-            count = (type === '扣分' ? (pData.deduct||[])[periodIdx] : (pData.bonus||[])[periodIdx]) || 0;
+            count = (type === '扣分' ? (pData.deduct||[])[origPeriodIdx] : (pData.bonus||[])[origPeriodIdx]) || 0;
           }
           if (count > 0) drillData.push({name: p, count: count, pi: pi});
         });
@@ -886,7 +927,7 @@ function updateChart4() {
         if (drillData.length === 0) return;
         var html = '<div style="margin-bottom:8px;"><strong>' + label + ' · ' + dsLabel + '</strong> — 点击人员查看差错类型：</div><div style="display:flex;flex-wrap:wrap;gap:4px;">';
         drillData.forEach(function(d) {
-          html += '<span class="chart4-person-chip" data-person="' + d.name + '" data-period="' + periodIdx + '" data-dim="' + dim + '" data-type="' + type + '" style="display:inline-block;margin:2px;padding:4px 14px;background:#f0f0f0;border-radius:14px;font-size:13px;cursor:pointer;border:1px solid #ddd;">' + d.name + ': ' + d.count + '条</span>';
+          html += '<span class="chart4-person-chip" data-person="' + d.name + '" data-period="' + origPeriodIdx + '" data-dim="' + dim + '" data-type="' + type + '" style="display:inline-block;margin:2px;padding:4px 14px;background:#f0f0f0;border-radius:14px;font-size:13px;cursor:pointer;border:1px solid #ddd;">' + d.name + ': ' + d.count + '条</span>';
         });
         html += '</div>';
         document.getElementById('chart4Info').innerHTML = html;
@@ -928,28 +969,124 @@ function resetChart4Drill() {
   document.getElementById('chart4Info').style.display = 'none';
   document.getElementById('resetChart4Btn').style.display = 'none';
 }
+// Populate group filter for Chart 4
+(function() {
+  var sel = document.getElementById('groupSelect4');
+  GC_GROUP_NAMES.forEach(function(g) {
+    sel.add(new Option(g, g));
+  });
+})();
 
-// =========== Chart 5: Group Change (展示扣分/加分条数) ===========
+// =========== Chart 5: Group Change (展示扣分/加分条数或环比) ===========
+function calcHb(arr) {
+  // Calculate 环比 (period-over-period) percentage change
+  return arr.map(function(v, i) {
+    if (i === 0) return 0; // No previous period
+    var prev = arr[i-1];
+    if (prev === 0) return v > 0 ? 100 : 0;
+    return Math.round((v - prev) / prev * 100);
+  });
+}
+
 function updateChart5() {
   var ctx = document.getElementById('chart5').getContext('2d');
   if (window.chart5Instance) window.chart5Instance.destroy();
   var dim = document.getElementById('dimSelect5').value;
   var chartType = document.getElementById('chartType5').value;
+  var viewMode = document.getElementById('viewMode5').value;
   var selGroup = document.getElementById('groupSelect5').value;
-  var labels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
+
+  // Filter labels and data for weekly mode: only active weeks (with dates)
+  var rawLabels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
+  var rawDeduct = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
+  var rawBonus = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+
+  var labels, deductData, bonusData;
+  if (dim === 'weekly') {
+    var activeIx = [];
+    GC_WEEK_DATES.forEach(function(d, i) { if (d) activeIx.push(i); });
+    labels = activeIx.map(function(i) { return rawLabels[i]; });
+    deductData = {};
+    bonusData = {};
+    GC_GROUP_NAMES.forEach(function(g) {
+      deductData[g] = activeIx.map(function(i) { return (rawDeduct[g]||[])[i]||0; });
+      bonusData[g] = activeIx.map(function(i) { return (rawBonus[g]||[])[i]||0; });
+    });
+  } else {
+    labels = rawLabels;
+    deductData = rawDeduct;
+    bonusData = rawBonus;
+  }
+
   var groups = selGroup === 'all' ? GC_GROUP_NAMES : [selGroup];
-  var deductData = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
-  var bonusData = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+  var yLabel, fmtVal;
+  if (viewMode === 'hb') {
+    yLabel = '环比 (%)';
+    fmtVal = function(v) { return v > 0 ? '+' + v + '%' : (v === 0 ? '' : v + '%'); };
+  } else {
+    yLabel = '条数';
+    fmtVal = function(v) { return v > 0 ? String(v) : ''; };
+  }
+
   var datasets = [];
   groups.forEach(function(g, gi) {
     var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
-    datasets.push({label: g + '-扣分', data: deductData[g] || labels.map(function(){return 0;}), backgroundColor: cols.deduct, borderColor: cols.deduct, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.deduct, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
-    datasets.push({label: g + '-加分', data: bonusData[g] || labels.map(function(){return 0;}), backgroundColor: cols.bonus, borderColor: cols.bonus, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.bonus, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+    var dArr = deductData[g] || labels.map(function(){return 0;});
+    var bArr = bonusData[g] || labels.map(function(){return 0;});
+    if (viewMode === 'hb') {
+      dArr = calcHb(dArr);
+      bArr = calcHb(bArr);
+    }
+    datasets.push({
+      label: g + '-扣分',
+      data: dArr,
+      backgroundColor: cols.deduct,
+      borderColor: cols.deduct,
+      borderWidth: 2,
+      tension: 0.3,
+      fill: false,
+      datalabels: {
+        color: cols.deduct,
+        anchor: 'end',
+        align: 'end',
+        font: {size: 10, weight: 'bold'},
+        formatter: fmtVal
+      }
+    });
+    datasets.push({
+      label: g + '-加分',
+      data: bArr,
+      backgroundColor: cols.bonus,
+      borderColor: cols.bonus,
+      borderWidth: 2,
+      tension: 0.3,
+      fill: false,
+      datalabels: {
+        color: cols.bonus,
+        anchor: 'end',
+        align: 'end',
+        font: {size: 10, weight: 'bold'},
+        formatter: fmtVal
+      }
+    });
   });
   window.chart5Instance = new Chart(ctx, {
     type: chartType == 'bar' ? 'bar' : 'line',
     data: {labels: labels, datasets: datasets},
-    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top', labels: {font: {size: 10}}}, datalabels: {display: true}}, scales: {y: {beginAtZero: true, title: {display: true, text: '条数'}}}}
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'top', labels: {font: {size: 10}}},
+        datalabels: {display: true}
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {display: true, text: yLabel}
+        }
+      }
+    }
   });
 }
 (function() {var sel=document.getElementById('groupSelect5');GC_GROUP_NAMES.forEach(function(g){sel.add(new Option(g,g));});})();
@@ -957,7 +1094,7 @@ function updateChart5() {
 try { updateChart1(); } catch(e) { console.error('Chart1 error:', e); }
 try { updateChart4(); } catch(e) { console.error('Chart4 error:', e); }
 try { updateChart5(); } catch(e) { console.error('Chart5 error:', e); }
-try { updateChart8(); } catch(e) { console.error('Chart8 error:', e); }
+try { populateChart8Periods(); updateChart8(); } catch(e) { console.error('Chart8 error:', e); }
 </script>
 </body>
 </html>'''
