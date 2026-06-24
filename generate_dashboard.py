@@ -257,6 +257,18 @@ select.person-select:focus { border-color: #667eea; }
   数据更新方式：修改 Excel 文件后，在终端运行 python refresh_all.py 即可刷新所有看板内容
 </div>
 
+<!-- 访问记录 -->
+<div class="card full-width" style="margin-top:20px;">
+  <h3>&#128337; 访问记录 <small>页面浏览统计</small></h3>
+  <div style="display:flex; gap:16px; flex-wrap:wrap;" id="visitStats">
+    <div class="kpi-card" style="flex:1;min-width:120px;"><div class="label">&#128337; 总访问量</div><div class="value total" id="visitTotal" style="font-size:22px;">-</div></div>
+    <div class="kpi-card" style="flex:1;min-width:120px;"><div class="label">&#128197; 今日访问</div><div class="value total" id="visitToday" style="font-size:22px;">-</div></div>
+    <div class="kpi-card" style="flex:1;min-width:120px;"><div class="label">&#128100; 独立访客</div><div class="value total" id="visitUnique" style="font-size:22px;">-</div></div>
+    <div class="kpi-card" style="flex:1;min-width:120px;"><div class="label">&#127758; 访问位置</div><div class="value" id="visitLocation" style="font-size:14px;color:#666;">-</div></div>
+  </div>
+  <div id="visitLog" style="margin-top:12px;font-size:12px;color:#999;max-height:100px;overflow-y:auto;"></div>
+</div>
+
 <script>
 // Register datalabels plugin globally
 Chart.register(ChartDataLabels);
@@ -987,6 +999,57 @@ function resetChart4Drill() {
 try { updateChart1(); } catch(e) { console.error('Chart1 error:', e); }
 try { updateChart4(); } catch(e) { console.error('Chart4 error:', e); }
 try { populateChart8Periods(); updateChart8(); } catch(e) { console.error('Chart8 error:', e); }
+
+// =========== Visit Tracking ===========
+(function() {
+  var NS = 'xiongqiang614';
+  var today = new Date().toISOString().slice(0,10); // 2026-06-24
+
+  // 1. Total visits counter
+  fetch('https://api.countapi.xyz/hit/' + NS + '/zhijian-total')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { document.getElementById('visitTotal').textContent = d.value; })
+    .catch(function() { document.getElementById('visitTotal').textContent = '---'; });
+
+  // 2. Today visits counter (date-keyed)
+  fetch('https://api.countapi.xyz/hit/' + NS + '/zhijian-' + today)
+    .then(function(r) { return r.json(); })
+    .then(function(d) { document.getElementById('visitToday').textContent = d.value; })
+    .catch(function() { document.getElementById('visitToday').textContent = '---'; });
+
+  // 3. Unique visitors (using localStorage to check first visit)
+  var visitedKey = 'zhijian_visited';
+  if (!localStorage.getItem(visitedKey)) {
+    localStorage.setItem(visitedKey, '1');
+    fetch('https://api.countapi.xyz/hit/' + NS + '/zhijian-unique')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { document.getElementById('visitUnique').textContent = d.value; })
+      .catch(function() {});
+  } else {
+    fetch('https://api.countapi.xyz/get/' + NS + '/zhijian-unique')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { document.getElementById('visitUnique').textContent = d.value; })
+      .catch(function() {});
+  }
+
+  // 4. Visitor location (via ip-api.com, free 45 req/min)
+  fetch('http://ip-api.com/json/?fields=city,regionName,country,query')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var loc = d.city + ', ' + d.regionName + ', ' + d.country;
+      document.getElementById('visitLocation').textContent = loc;
+      // log to visit log
+      var now = new Date();
+      var timeStr = now.toLocaleString('zh-CN');
+      var log = document.getElementById('visitLog');
+      log.innerHTML = '<span style="color:#999;">[' + timeStr + '] 来自 ' + loc + ' 的访问 (IP: ' + d.query + ')</span>';
+    })
+    .catch(function() {
+      document.getElementById('visitLocation').textContent = '未知';
+      var now = new Date();
+      document.getElementById('visitLog').innerHTML = '<span style="color:#999;">[' + now.toLocaleString('zh-CN') + '] 访问已记录</span>';
+    });
+})();
 </script>
 </body>
 </html>'''
