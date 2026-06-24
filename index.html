@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>客服质检可视化数据看板</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="./node_modules/chart.js/dist/chart.umd.js"></script>
+<script src="./node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f7fa; color: #333; padding: 20px; }
@@ -38,21 +38,29 @@ select.person-select:focus { border-color: #667eea; }
 <body>
 
 <div class="header">
-  <h1>&#128202; 客服质检数据可视化看板</h1>
+  <h1>&#128202; 客服质检数据看板</h1>
   <p>数据来源：客服质检数据自动分析模板.xlsx ｜ 更新后重新运行 refresh_all.py 即可刷新</p>
   <span class="badge">&#128260; 支持数据源更新</span>
 </div>
 
 <!-- KPI Cards -->
-<div class="kpi-row" id="kpiRow" style="grid-template-columns: repeat(2, 1fr);">
-  <div class="kpi-card"><div class="label">&#128308; 6月扣分数据</div><div class="value deduct" id="kpiDeduct">-</div></div>
-  <div class="kpi-card"><div class="label">&#128994; 6月加分数据</div><div class="value bonus" id="kpiBonus">-</div></div>
+<div class="kpi-row" id="kpiRow" style="grid-template-columns: repeat(4, 1fr);">
+  <div class="kpi-card" id="kpiDeductCard"><div class="label">&#128308; 当月扣分</div><div class="value deduct" id="kpiDeduct">-</div></div>
+  <div class="kpi-card" id="kpiBonusCard"><div class="label">&#128994; 当月加分</div><div class="value bonus" id="kpiBonus">-</div></div>
+  <div class="kpi-card" id="kpiDeductHbCard"><div class="label">&#8605; 扣分环比</div><div class="value" id="kpiDeductHb" style="font-size:18px;">-</div></div>
+  <div class="kpi-card" id="kpiBonusHbCard"><div class="label">&#8605; 加分环比</div><div class="value" id="kpiBonusHb" style="font-size:18px;">-</div></div>
+</div>
+
+<!-- 核心数据情况汇总 -->
+<div class="card full-width" style="margin-bottom:20px;">
+  <h3>&#128203; 核心数据情况汇总 <small>' + CURRENT_MONTH_DISPLAY + '</small></h3>
+  <div id="coreSummaryContent" style="font-size:14px;"></div>
 </div>
 
 <div class="grid">
-  <!-- Chart 1: 每月人员扣分及加分数量变化（含差错类型钻取）-->
+  <!-- Chart 1: 整体差错类型分布 -->
   <div class="card full-width">
-    <h3>&#128200; &#9312; 扣分数量按差错类型分布 <small>支持月度/周度切换，点击色块查看人员明细</small></h3>
+    <h3>&#128200; &#9312; 整体差错类型分布 <small>按人员×差错类型堆叠，点击色块查看人员明细</small></h3>
     <div class="toolbar">
       <label>维度：</label>
       <select class="person-select" id="dimSelect1" onchange="updateChart1()">
@@ -72,92 +80,70 @@ select.person-select:focus { border-color: #667eea; }
     <div class="chart-container tall"><canvas id="chart1"></canvas></div>
   </div>
 
-  <!-- Chart 2: 当月每周人员扣分及加分数量变化 -->
+  <!-- Chart 8: 员工整体差错明细 -->
   <div class="card full-width">
-    <h3>&#128202; &#9313; 6月每周人员扣分及加分数量变化 <small>仅显示有数据的周次</small></h3>
+    <h3>&#128203; &#9313; 员工整体差错明细 <small>按月/周查看差错类型钻取</small></h3>
     <div class="toolbar">
-      <label>人员：</label>
-      <select class="person-select" id="personSelect2" onchange="updateChart2()"></select>
+      <label>维度：</label>
+      <select class="person-select" id="modeSelect8" onchange="updateChart8()">
+        <option value="monthly">月度</option>
+        <option value="weekly">周度</option>
+      </select>
+      <select class="person-select" id="periodSelect8" onchange="updateChart8()"></select>
+      <button class="person-select" id="resetChart8Btn" onclick="resetChart8Selection()" style="background:#e74c3c;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;display:none;">&#10005; 取消选择</button>
     </div>
-    <div class="chart-container"><canvas id="chart2"></canvas></div>
+    <div id="chart8PersonInfo" style="margin-bottom:10px;font-size:13px;color:#555;display:none;"></div>
+    <div class="chart-container tall"><canvas id="chart8"></canvas></div>
   </div>
 
-  <!-- Chart 3: 每月差错类型数量变化 -->
-  <div class="card">
-    <h3>&#128270; &#9314; 每月差错类型数量变化趋势 <small>点击图例或下方按钮切换显示</small></h3>
-    <div class="toolbar" id="chart3Toolbar" style="flex-wrap:wrap;gap:6px;">
-      <button class="person-select" onclick="toggleAllChart3(true)" style="background:#3498db;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#9654; 全选</button>
-      <button class="person-select" onclick="toggleAllChart3(false)" style="background:#95a5a6;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#10005; 取消全选</button>
-    </div>
-    <div class="chart-container tall"><canvas id="chart3"></canvas></div>
-  </div>
-
-  <!-- Chart 4: 当月小组每周扣分数量变化 -->
-  <div class="card">
-    <h3>&#128101; &#9315; 6月各小组每周扣分数量变化</h3>
-    <div class="chart-container"><canvas id="chart4"></canvas></div>
-    <!-- Chart 5: Weekly Top3 charts -->
+  <!-- Chart 4: 小组对比分析 -->
   <div class="card full-width">
-    <h3>&#127942; &#9316; 每周扣分前三 <small>按周展示</small></h3>
-    <div class="toolbar" style="flex-wrap:wrap;gap:6px;">
-      <button class="person-select" onclick="toggleAllChart5a(true)" style="background:#3498db;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#9654; 全选</button>
-      <button class="person-select" onclick="toggleAllChart5a(false)" style="background:#95a5a6;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#10005; 取消全选</button>
+    <h3>&#128101; &#9314; 小组对比分析 <small>田敏组 vs 李师组，可切换月度/周度、柱形/折线</small></h3>
+    <div class="toolbar">
+      <label>维度：</label>
+      <select class="person-select" id="dimSelect4" onchange="updateChart4()">
+        <option value="monthly" selected>月度</option>
+        <option value="weekly">周度</option>
+      </select>
+      <label>样式：</label>
+      <select class="person-select" id="chartType4" onchange="updateChart4()">
+        <option value="bar" selected>柱状图</option>
+        <option value="line">折线图</option>
+      </select>
     </div>
-    <div class="chart-container"><canvas id="chart5a"></canvas></div>
+    <div id="chart4Info" style="margin-bottom:10px;font-size:13px;color:#555;display:none;"></div>
+    <button id="resetChart4Btn" onclick="resetChart4Drill()" style="display:none;background:#e74c3c;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;margin-bottom:8px;">&#10005; 返回小组概览</button>
+    <div class="chart-container tall"><canvas id="chart4"></canvas></div>
   </div>
+
+  <!-- Chart 5: 小组环比变化 -->
   <div class="card full-width">
-    <h3>&#127942; &#9316; 每周加分前三 <small>按周展示</small></h3>
-    <div class="toolbar" style="flex-wrap:wrap;gap:6px;">
-      <button class="person-select" onclick="toggleAllChart5b(true)" style="background:#3498db;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#9654; 全选</button>
-      <button class="person-select" onclick="toggleAllChart5b(false)" style="background:#95a5a6;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#10005; 取消全选</button>
+    <h3>&#128202; &#9315; 小组扣分/加分条数 <small>月度/周度切换，柱形/折线，可筛选小组</small></h3>
+    <div class="toolbar">
+      <label>维度：</label>
+      <select class="person-select" id="dimSelect5" onchange="updateChart5()">
+        <option value="monthly" selected>月度</option>
+        <option value="weekly">周度</option>
+      </select>
+      <label>样式：</label>
+      <select class="person-select" id="chartType5" onchange="updateChart5()">
+        <option value="bar" selected>柱状图</option>
+        <option value="line">折线图</option>
+      </select>
+      <label>小组：</label>
+      <select class="person-select" id="groupSelect5" onchange="updateChart5()">
+        <option value="all">全部小组</option>
+      </select>
     </div>
-    <div class="chart-container"><canvas id="chart5b"></canvas></div>
+    <div class="chart-container tall"><canvas id="chart5"></canvas></div>
   </div>
-  </div>
-
-    <!-- Chart 6: Top5 weekly trend -->
-  <div class="card full-width">
-    <h3>&#128202; &#9317; 当月扣分前5人员每周扣分趋势</h3>
-    <div class="toolbar" style="flex-wrap:wrap;gap:6px;">
-      <button class="person-select" onclick="toggleAllChart6(true)" style="background:#3498db;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#9654; 全选</button>
-      <button class="person-select" onclick="toggleAllChart6(false)" style="background:#95a5a6;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">&#10005; 取消全选</button>
-    </div>
-    <div class="chart-container"><canvas id="chart6"></canvas></div>
-  </div>
-  </div>
-</div>
-
-<!-- Chart 7: Top5 person deduct error type details -->
-<div class="card full-width">
-  <h3>&#128203; &#9318; 当月扣分前5人员扣分差错类型明细 <small>支持按人员筛选</small></h3>
-  <div class="toolbar">
-    <label>人员：</label>
-    <select class="person-select" id="personSelect7" onchange="updateChart7()"></select>
-  </div>
-  <div class="chart-container tall"><canvas id="chart7"></canvas></div>
-</div>
-
-<!-- Chart 8: 差错类型钻取分析 -->
-<div class="card full-width">
-  <h3>&#128270; &#9319; 差错类型钻取分析 <small>按月/周查看，点击色块查看人员明细</small></h3>
-  <div class="toolbar">
-    <label>维度：</label>
-    <select class="person-select" id="modeSelect8" onchange="updateChart8()">
-      <option value="monthly">月度</option>
-      <option value="weekly">周度</option>
-    </select>
-    <select class="person-select" id="periodSelect8" onchange="updateChart8()"></select>
-    <button class="person-select" id="resetChart8Btn" onclick="resetChart8Selection()" style="background:#e74c3c;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;display:none;">&#10005; 取消选择</button>
-  </div>
-  <div id="chart8PersonInfo" style="margin-bottom:10px;font-size:13px;color:#555;display:none;"></div>
-  <div class="chart-container tall"><canvas id="chart8"></canvas></div>
 </div>
 
 <div style="text-align:center; margin-top: 30px; font-size: 12px; color: #aaa;">
   数据更新方式：修改 Excel 文件后，在终端运行 python refresh_all.py 即可刷新所有看板内容
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="./node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
 // Register datalabels plugin globally
 Chart.register(ChartDataLabels);
@@ -183,12 +169,101 @@ const ETD_ERROR_TYPES = ["主动性", "信息提供错误", "其他业务流程�
 const ETD_MONTHLY = {"2026.1": {"陈转": {"其他业务流程差错": 7, "解决力": 1}, "张芳瑜": {"其他业务流程差错": 1}, "李德奇": {"其他业务流程差错": 1}, "康利琦": {"其他业务流程差错": 2}, "向玉婷": {"其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 2}, "彭阳斌": {"其他业务流程差错": 2}, "陆晓毅": {"其他业务流程差错": 1}, "龚海林": {"其他业务流程差错": 1, "解决力": 1}, "阳倩": {"其他业务流程差错": 2, "主动性": 1, "信息提供错误": 1}, "唐帼琼": {"其他业务流程差错": 2}, "杜娇": {"其他业务流程差错": 1}, "林蓉": {"其他业务流程差错": 1}, "王静": {"其他业务流程差错": 1}, "刘玥燕": {"其他业务流程差错": 3}, "李妍": {"其他业务流程差错": 2}, "何文": {"解决力": 1}, "欧阳香娥": {"其他业务流程差错": 1}}, "2026.2": {"阳倩": {"其他业务流程差错": 11}, "陈转": {"其他业务流程差错": 9}, "林蓉": {"其他业务流程差错": 5}, "向玉婷": {"其他业务流程差错": 3}, "杨阳": {"其他业务流程差错": 4}, "李德奇": {"其他业务流程差错": 3}, "王静": {"其他业务流程差错": 1, "主动性": 1}, "欧阳香娥": {"其他业务流程差错": 7}, "康利琦": {"其他业务流程差错": 1}, "彭阳斌": {"其他业务流程差错": 5}, "彭家逸": {"其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 2, "主动性": 1}, "何文": {"其他业务流程差错": 1, "解决力": 1}, "刘玥燕": {"其他业务流程差错": 1}, "唐帼琼": {"其他业务流程差错": 3}, "李妍": {"其他业务流程差错": 1}, "陆晓毅": {"其他业务流程差错": 1}, "杜娇": {"其他业务流程差错": 1}, "张芳瑜": {"其他业务流程差错": 1}, "刘赛男": {"解决力": 1}}, "2026.3": {"汤凌峰": {"应反馈未反馈": 1, "信息提供错误": 1, "小额打款普通差错": 3, "其他业务流程差错": 1, "表达力": 1}, "阳倩": {"解决力": 1, "小额打款重大差错": 1, "其他业务流程差错": 1}, "龚海林": {"小额打款普通差错": 2, "小额打款重大差错": 1, "其他业务流程差错": 1}, "陆晓毅": {"小额打款普通差错": 1}, "何文": {"小额打款重大差错": 1, "其他业务流程差错": 2}, "刘玥燕": {"小额打款重大差错": 1, "解决力": 1, "表达力": 1}, "彭阳斌": {"小额打款普通差错": 1}, "陈转": {"主动性": 1}, "林蓉": {"其他业务流程差错": 2}, "唐帼琼": {"其他业务流程差错": 1, "解决力": 1}}, "2026.4": {"杨阳": {"其他业务流程差错": 2}, "陈转": {"信息提供错误": 1, "小额打款普通差错": 1, "解决力": 1}, "李庆": {"解决力": 2}, "李德奇": {"其他业务流程差错": 1}, "彭阳斌": {"小额打款普通差错": 1, "表达力": 1, "其他业务流程差错": 1, "解决力": 1}, "龚海林": {"小额打款重大差错": 1}, "阳倩": {"小额打款重大差错": 1, "主动性": 1, "其他业务流程差错": 1}, "唐帼琼": {"解决力": 1, "表达力": 1}, "汤凌峰": {"解决力": 1, "其他业务流程差错": 3}, "陆晓毅": {"表达力": 1}, "林蓉": {"信息提供错误": 1}, "何文": {"应反馈未反馈": 1}, "王静": {"应反馈未反馈": 1, "信息提供错误": 1, "其他业务流程差错": 1}, "向玉婷": {"应反馈未反馈": 1, "其他业务流程差错": 1}, "彭家逸": {"其他业务流程差错": 1}}, "2026.5": {"李庆": {"小额打款重大差错": 1}, "向玉婷": {"小额打款重大差错": 1, "小额打款普通差错": 1}, "陆晓毅": {"小额打款普通差错": 1}, "彭家逸": {"小额打款普通差错": 1, "信息提供错误": 1, "其他业务流程差错": 2}, "陈转": {"小额打款普通差错": 1, "其他业务流程差错": 3, "超服务范围承诺": 1}, "刘玥燕": {"小额打款普通差错": 1, "其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 2, "响应超时": 1, "解决力": 1, "信息提供错误": 2}, "彭阳斌": {"其他业务流程差错": 7}, "林蓉": {"其他业务流程差错": 1, "信息提供错误": 1}, "张芳瑜": {"其他业务流程差错": 1}, "黎园": {"表达力": 1}, "李德奇": {"其他业务流程差错": 1}, "吴靖偎": {"其他业务流程差错": 2}, "唐帼琼": {"表达力": 1}, "何文": {"其他业务流程差错": 1}, "杜娇": {"解决力": 1, "其他业务流程差错": 1}, "杨阳": {"其他业务流程差错": 1}, "王静": {"其他业务流程差错": 1}}, "2026.6": {"阳倩": {"其他业务流程差错": 6}, "刘玥燕": {"解决力": 2, "其他业务流程差错": 1}, "李德奇": {"其他业务流程差错": 1, "解决力": 1}, "何文": {"解决力": 1, "其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 2, "解决力": 1, "应反馈未反馈": 1}, "杨阳": {"解决力": 1}, "张芳瑜": {"主动性": 1, "其他业务流程差错": 1}, "陈转": {"表达力": 1, "信息提供错误": 1}, "唐帼琼": {"其他业务流程差错": 1}, "向玉婷": {"其他业务流程差错": 1}, "彭阳斌": {"情感共鸣": 1}}};
 const ETD_WEEKLY = {"6月第1周": {"陈转": {"表达力": 1}, "张芳瑜": {"主动性": 1}, "刘玥燕": {"解决力": 1}, "杨阳": {"解决力": 1}, "李德奇": {"其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 1}, "阳倩": {"其他业务流程差错": 2}, "何文": {"其他业务流程差错": 1, "解决力": 1}}, "6月第2周": {"陈转": {"信息提供错误": 1}, "张芳瑜": {"其他业务流程差错": 1}, "唐帼琼": {"其他业务流程差错": 1}, "刘玥燕": {"解决力": 1}, "汤凌峰": {"解决力": 1}}, "6月第3周": {"李德奇": {"解决力": 1}, "向玉婷": {"其他业务流程差错": 1}, "汤凌峰": {"应反馈未反馈": 1}, "阳倩": {"其他业务流程差错": 4}}, "6月第4周": {"刘玥燕": {"其他业务流程差错": 1}, "汤凌峰": {"其他业务流程差错": 1}}, "6月第5周": {}, "6月第6周": {}, "6月第7周": {}, "6月第8周": {}, "6月第9周": {}, "6月第10周": {}, "6月第11周": {}, "6月第12周": {}, "6月第13周": {}, "6月第14周": {}, "6月第15周": {}, "6月第16周": {}, "6月第17周": {}, "6月第18周": {}};
 
-// =========== KPI Calculation ===========
+// 核心汇总数据
+const CORE_SUMMARY = {"current_month": "6月", "prev_month": "5月", "deduct": 25, "bonus": 9, "hb_deduct": {"diff": 16, "direction": "down"}, "hb_bonus": {"diff": 10, "direction": "down"}, "groups": {"李师组": {"deduct": 9, "bonus": 3, "hb_deduct": [10, "down"], "hb_bonus": [6, "down"]}, "田敏组": {"deduct": 16, "bonus": 6, "hb_deduct": [6, "down"], "hb_bonus": [4, "down"]}}, "top3_deduct": [{"name": "阳倩", "group": "田敏组", "count": 6}, {"name": "汤凌峰", "group": "田敏组", "count": 4}, {"name": "刘玥燕", "group": "李师组", "count": 3}], "top3_bonus": [{"name": "黎园", "group": "田敏组", "count": 3}, {"name": "刘赛男", "group": "李师组", "count": 2}, {"name": "李德奇", "group": "田敏组", "count": 2}]};
+
+// 小组对比分析数据
+const GC_MONTHS = ["1月", "2月", "3月", "4月", "5月", "6月"];
+const GC_WEEKS = ["6月第1周", "6月第2周", "6月第3周", "6月第4周", "6月第5周", "6月第6周", "6月第7周", "6月第8周", "6月第9周", "6月第10周", "6月第11周", "6月第12周", "6月第13周", "6月第14周", "6月第15周", "6月第16周", "6月第17周", "6月第18周"];
+const GC_WEEK_DATES = ["5月29—6月4", "6月5—6月11", "6月12—6月18", "6月19—6月25", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+const GC_GROUP_NAMES = ["李师组", "田敏组"];
+const GC_MONTHLY_DEDUCT = {"李师组": [20, 32, 7, 14, 19, 9], "田敏组": [16, 33, 20, 17, 22, 16]};
+const GC_MONTHLY_BONUS = {"李师组": [1, 2, 7, 13, 9, 3], "田敏组": [13, 8, 7, 14, 10, 6]};
+const GC_WEEKLY_DEDUCT = {"李师组": [4, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "田敏组": [6, 1, 7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]};
+const GC_WEEKLY_BONUS = {"李师组": [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "田敏组": [2, 2, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]};
+
+// =========== KPI + Core Summary ===========
 (function() {
-  const deductJune = 25;
-  const bonusJune = 9;
-  document.getElementById('kpiDeduct').textContent = deductJune;
-  document.getElementById('kpiBonus').textContent = bonusJune;
+  const cs = CORE_SUMMARY;
+  const d = cs.deduct || 0;
+  const b = cs.bonus || 0;
+  document.getElementById('kpiDeduct').textContent = d;
+  document.getElementById('kpiBonus').textContent = b;
+
+  // 环比显示
+  function hbHTML(hb, label) {
+    if (!hb) return '---';
+    var diff = hb.diff || 0;
+    var dir = hb.direction || 'same';
+    if (dir === 'up') return '↑ 上升 ' + diff;
+    if (dir === 'down') return '↓ 下降 ' + diff;
+    return '↔ 持平';
+  }
+  document.getElementById('kpiDeductHb').textContent = hbHTML(cs.hb_deduct);
+  document.getElementById('kpiDeductHb').style.color = cs.hb_deduct && cs.hb_deduct.direction === 'up' ? '#e74c3c' : (cs.hb_deduct && cs.hb_deduct.direction === 'down' ? '#27ae60' : '#999');
+  document.getElementById('kpiBonusHb').textContent = hbHTML(cs.hb_bonus);
+  document.getElementById('kpiBonusHb').style.color = cs.hb_bonus && cs.hb_bonus.direction === 'up' ? '#27ae60' : (cs.hb_bonus && cs.hb_bonus.direction === 'down' ? '#e74c3c' : '#999');
+
+  // 核心汇总渲染
+  var html = '';
+
+  // ① 当月总计
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>① 当月总计：</strong> ';
+  html += '扣分 ' + d + ' 条、加分 ' + b + ' 条';
+  if (cs.prev_month) {
+    html += ' <span style="color:#999;font-size:12px;">（上月' + cs.prev_month + '：扣分' + (cs.hb_deduct ? (d - cs.hb_deduct.diff * (cs.hb_deduct.direction === 'down' ? -1 : 1)) : '?') + '、加分' + (cs.hb_bonus ? (b - cs.hb_bonus.diff * (cs.hb_bonus.direction === 'down' ? -1 : 1)) : '?') + '）</span>';
+  }
+  html += '</div>';
+
+  // ② 环比
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>② 环比变化：</strong> ';
+  if (cs.prev_month) {
+    html += '扣分 ' + hbHTML(cs.hb_deduct) + '，加分 ' + hbHTML(cs.hb_bonus) + ' <span style="color:#999;font-size:12px;">（与' + cs.prev_month + '相比）</span>';
+  } else {
+    html += '暂无上月数据可比对';
+  }
+  html += '</div>';
+
+  // ③ 小组维度
+  html += '<div style="margin-bottom:12px;">';
+  html += '<strong>③ 小组维度：</strong> ';
+  var groups = cs.groups || {};
+  var gKeys = Object.keys(groups).sort();
+  if (gKeys.length > 0) {
+    gKeys.forEach(function(g) {
+      var info = groups[g];
+      html += '<span style="display:inline-block;margin:2px 8px 2px 0;padding:3px 10px;background:#f5f5f5;border-radius:8px;font-size:12px;">' + g + ': 扣分' + info.deduct + '、加分' + info.bonus;
+      if (info.hb_deduct && info.hb_deduct.direction !== 'same') {
+        html += ' | 扣分' + hbHTML(info.hb_deduct);
+      }
+      if (info.hb_bonus && info.hb_bonus.direction !== 'same') {
+        html += ' 加分' + hbHTML(info.hb_bonus);
+      }
+      html += '</span> ';
+    });
+  } else {
+    html += '暂无数据';
+  }
+  html += '</div>';
+
+  // ④ TOP3
+  html += '<div>';
+  html += '<strong>④ 当月TOP3：</strong> ';
+  var t3d = cs.top3_deduct || [];
+  var t3b = cs.top3_bonus || [];
+  html += '扣分前三：';
+  t3d.forEach(function(p, i) {
+    html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#ffe0e0;border-radius:8px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ' + p.count + '次</span>';
+  });
+  html += ' | 加分前三：';
+  t3b.forEach(function(p, i) {
+    html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#e0ffe0;border-radius:8px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') ' + p.count + '次</span>';
+  });
+  html += '</div>';
+
+  document.getElementById('coreSummaryContent').innerHTML = html;
 })();
 
 // =========== Helper: format week label with dates ===========
@@ -470,433 +545,6 @@ function updateChart1() {
   });
 }
 
-// =========== Chart 2: Weekly June per person ===========
-(function() {
-  const sel = document.getElementById('personSelect2');
-  sel.add(new Option('全部人员（汇总）', 'all'));
-  Object.keys(CHART2.personData).sort().forEach(p => sel.add(new Option(p, p)));
-})();
-
-function updateChart2() {
-  const selPerson = document.getElementById('personSelect2').value;
-  const activeWks = CHART2.activeWeeks || [];
-  if (activeWks.length === 0) {
-    document.getElementById('chart2').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:60px 0;">暂无6月周度数据</p>';
-    return;
-  }
-  const labels = activeWks.map(function(i) { return fmtWeek(CHART2.weeks[i] || ('周' + (i+1)), CHART2.weekDates[i] || ''); });
-  let datasets = [];
-
-  if (selPerson === 'all') {
-    const allNames = Object.keys(CHART2.personData);
-    const deductTotal = activeWks.map(wi => allNames.reduce((s, p) => s + ((CHART2.personData[p].deduct[wi]||0)), 0));
-    const bonusTotal = activeWks.map(wi => allNames.reduce((s, p) => s + ((CHART2.personData[p].bonus[wi]||0)), 0));
-    datasets.push({ label: '扣分', data: deductTotal, backgroundColor: '#e74c3c', borderRadius: 4, datalabels: datalabelConfig('#c0392b') });
-    datasets.push({ label: '加分', data: bonusTotal, backgroundColor: '#27ae60', borderRadius: 4, datalabels: datalabelConfig('#1e8449') });
-  } else {
-    const pd = CHART2.personData[selPerson];
-    if (pd) {
-      const d = activeWks.map(wi => pd.deduct[wi]||0);
-      const b = activeWks.map(wi => pd.bonus[wi]||0);
-      datasets.push({ label: '扣分', data: d, backgroundColor: '#e74c3c', borderRadius: 4, datalabels: datalabelConfig('#c0392b') });
-      datasets.push({ label: '加分', data: b, backgroundColor: '#27ae60', borderRadius: 4, datalabels: datalabelConfig('#1e8449') });
-    }
-  }
-
-  const ctx = document.getElementById('chart2').getContext('2d');
-  if (window.chart2Instance) window.chart2Instance.destroy();
-  window.chart2Instance = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' }, datalabels: { display: true } },
-      scales: { y: { beginAtZero: true, title: { display: true, text: '数量' } }, x: { title: { display: true, text: '周次' } } }
-    }
-  });
-}
-
-// =========== Chart 3: Error type trends ===========
-function updateChart3() {
-  const labels = CHART3.months;
-  const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#16a085','#c0392b'];
-
-  const datasets = CHART3.errorTypes.map((et, i) => ({
-    label: et.name,
-    data: et.values,
-    borderColor: colors[i % colors.length],
-    backgroundColor: colors[i % colors.length] + '33',
-    borderWidth: 2,
-    tension: 0.3,
-    fill: false,
-    pointRadius: 4,
-    pointHoverRadius: 7,
-    datalabels: { color: function(ctx) { return ctx.dataset.borderColor; }, anchor: 'end', align: 'end', font: { weight: 'bold', size: 10 }, formatter: function(v) { return v > 0 ? v : ''; } }
-  }));
-
-  const ctx = document.getElementById('chart3').getContext('2d');
-  if (window.chart3Instance) window.chart3Instance.destroy();
-  window.chart3Instance = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { font: { size: 11 }, boxWidth: 12 },
-          onClick: function(e, legendItem, legend) {
-            const index = legendItem.datasetIndex;
-            const ci = legend.chart;
-            const meta = ci.getDatasetMeta(index);
-            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
-            ci.update();
-            updateChart3Buttons();
-          }
-        },
-        datalabels: { display: true }
-      },
-      scales: { y: { beginAtZero: true, title: { display: true, text: '次数' } }, x: { title: { display: true, text: '月份' } } }
-    }
-  });
-  renderChart3Buttons();
-  renderChart5a();
-  renderChart5b();
-  updateChart6();
-}
-
-// 生成每个差错类型的切换按钮
-function renderChart3Buttons() {
-  const toolbar = document.getElementById('chart3Toolbar');
-  while (toolbar.children.length > 2) {
-    toolbar.removeChild(toolbar.lastChild);
-  }
-  const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#16a085','#c0392b'];
-  CHART3.errorTypes.forEach((et, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'person-select';
-    btn.id = 'c3btn_' + i;
-    btn.style.cssText = 'border:2px solid ' + colors[i % colors.length] + ';border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;background:' + colors[i % colors.length] + ';color:#fff;';
-    btn.textContent = et.name;
-    btn.onclick = function() { toggleChart3Item(i); };
-    toolbar.appendChild(btn);
-  });
-}
-
-// 切换单个差错类型的显示状态
-function toggleChart3Item(index) {
-  const ci = window.chart3Instance;
-  if (!ci) return;
-  const meta = ci.getDatasetMeta(index);
-  meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
-  ci.update();
-  updateChart3Buttons();
-}
-
-// 全选/取消全选
-function toggleAllChart3(show) {
-  const ci = window.chart3Instance;
-  if (!ci) return;
-  ci.data.datasets.forEach((ds, i) => {
-    const meta = ci.getDatasetMeta(i);
-    meta.hidden = show ? false : true;
-  });
-  ci.update();
-  updateChart3Buttons();
-}
-
-// 更新按钮状态
-function updateChart3Buttons() {
-  const ci = window.chart3Instance;
-  if (!ci) return;
-  CHART3.errorTypes.forEach((et, i) => {
-    const btn = document.getElementById('c3btn_' + i);
-    if (!btn) return;
-    const meta = ci.getDatasetMeta(i);
-    const hidden = meta.hidden || false;
-    btn.style.opacity = hidden ? '0.4' : '1';
-    btn.style.background = hidden ? '#ccc' : (ci.data.datasets[i].borderColor || '#3498db');
-    btn.style.color = hidden ? '#666' : '#fff';
-  });
-}
-
-// =========== Chart 4}
-
-// =========== Chart 4: Weekly group deduct ===========
-function updateChart4() {
-  const activeIndices = [];
-  CHART4.weeks.forEach((_, wi) => {
-    let hasData = false;
-    CHART4.groupNames.forEach(gn => {
-      if (CHART4.groups[gn] && CHART4.groups[gn][wi] > 0) hasData = true;
-    });
-    if (hasData) activeIndices.push(wi);
-  });
-
-  if (activeIndices.length === 0) {
-    document.getElementById('chart4').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:60px 0;">暂无6月小组周度数据</p>';
-    return;
-  }
-
-  const flabels = activeIndices.map(function(i) { return fmtWeek(CHART4.weeks[i] || ('周' + (i+1)), CHART4.weekDates[i] || ''); });
-  const colors = ['#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22'];
-  const datasets = CHART4.groupNames.map((gn, i) => ({
-    label: gn,
-    data: activeIndices.map(wi => (CHART4.groups[gn] || [])[wi] || 0),
-    backgroundColor: colors[i % colors.length],
-    borderRadius: 4,
-    datalabels: datalabelConfig(colors[i % colors.length])
-  }));
-
-  const ctx = document.getElementById('chart4').getContext('2d');
-  if (window.chart4Instance) window.chart4Instance.destroy();
-  window.chart4Instance = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: flabels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 30 } },
-      plugins: { legend: { position: 'top' }, datalabels: { display: true } },
-      scales: { y: { beginAtZero: true, title: { display: true, text: '扣分数量' } } }
-    }
-  });
-}
-
-// =========== Chart 5a: Weekly Top3 deduct chart ===========
-function renderChart5a() {
-  var ctx = document.getElementById("chart5a").getContext("2d");
-  if (window.chart5aInstance) window.chart5aInstance.destroy();
-  var wkList = Object.keys(WEEKLY_TOP3);
-  if (wkList.length === 0) return;
-  var wkLabels = wkList.map(function(wk) { return fmtWeek(wk, WEEK_DATE_MAP[wk] || ''); });
-  var allDeduct = {};
-  wkList.forEach(function(wk) {
-    WEEKLY_TOP3[wk].deduct_top.forEach(function(x) {
-      if (!allDeduct[x.name]) allDeduct[x.name] = x.group;
-    });
-  });
-  var personList = Object.keys(allDeduct);
-  var deductColors = ["#CC0000","#FF6600","#0033CC","#9900CC","#009999"];
-  var datasets = personList.map(function(p, i) {
-    var c = deductColors[i % deductColors.length];
-    return {
-      label: p + "(" + (allDeduct[p] || "") + ")",
-      data: wkList.map(function(wk) {
-        var found = WEEKLY_TOP3[wk].deduct_top.filter(function(x) { return x.name === p; });
-        return found.length > 0 ? found[0].count : 0;
-      }),
-      backgroundColor: c,
-      borderRadius: 4,
-      datalabels: {
-        color: '#fff',
-        anchor: "end",
-        align: "start",
-        font: { weight: "bold", size: 11 },
-        offset: 4,
-        formatter: function(v) { return v > 0 ? v : ""; }
-      }
-    };
-  });
-  window.chart5aInstance = new Chart(ctx, {
-    type: "bar",
-    data: { labels: wkLabels, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 10 } },
-      plugins: {
-        legend: { position: "top", labels: { font: { size: 10 } }, onClick: function(e, item, legend) { var idx = item.datasetIndex; legend.chart.getDatasetMeta(idx).hidden = !legend.chart.getDatasetMeta(idx).hidden; legend.chart.update(); } },
-        datalabels: { display: true }
-      },
-      scales: { y: { beginAtZero: true, title: { display: true, text: "扣分次数" } } }
-    }
-  });
-}
-function toggleAllChart5a(show) {
-  var ci = window.chart5aInstance;
-  if (!ci) return;
-  ci.data.datasets.forEach(function(ds, i) { ci.getDatasetMeta(i).hidden = show ? false : true; });
-  ci.update();
-}
-
-// =========== Chart 5b: Weekly Top3 bonus chart ===========
-function renderChart5b() {
-  var ctx = document.getElementById("chart5b").getContext("2d");
-  if (window.chart5bInstance) window.chart5bInstance.destroy();
-  var wkList = Object.keys(WEEKLY_TOP3);
-  if (wkList.length === 0) return;
-  var wkLabels = wkList.map(function(wk) { return fmtWeek(wk, WEEK_DATE_MAP[wk] || ''); });
-  var allBonus = {};
-  wkList.forEach(function(wk) {
-    WEEKLY_TOP3[wk].bonus_top.forEach(function(x) {
-      if (!allBonus[x.name]) allBonus[x.name] = x.group;
-    });
-  });
-  var personList = Object.keys(allBonus);
-  // 高辨识度加分颜色：红、绿、橙、蓝、紫 — 确保每两种颜色都明显不同
-  var bonusColors = ["#D32F2F","#2E7D32","#FF8F00","#1565C0","#6A1B9A"];
-  var datasets = personList.map(function(p, i) {
-    var c = bonusColors[i % bonusColors.length];
-    return {
-      label: p + "(" + (allBonus[p] || "") + ")",
-      data: wkList.map(function(wk) {
-        var found = WEEKLY_TOP3[wk].bonus_top.filter(function(x) { return x.name === p; });
-        return found.length > 0 ? found[0].count : 0;
-      }),
-      backgroundColor: c,
-      borderRadius: 4,
-      datalabels: {
-        color: '#fff',
-        anchor: "end",
-        align: "start",
-        font: { weight: "bold", size: 11 },
-        offset: 4,
-        formatter: function(v) { return v > 0 ? v : ""; }
-      }
-    };
-  });
-  window.chart5bInstance = new Chart(ctx, {
-    type: "bar",
-    data: { labels: wkLabels, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 10 } },
-      plugins: {
-        legend: { position: "top", labels: { font: { size: 10 } }, onClick: function(e, item, legend) { var idx = item.datasetIndex; legend.chart.getDatasetMeta(idx).hidden = !legend.chart.getDatasetMeta(idx).hidden; legend.chart.update(); } },
-        datalabels: { display: true }
-      },
-      scales: { y: { beginAtZero: true, title: { display: true, text: "加分次数" } } }
-    }
-  });
-}
-function toggleAllChart5b(show) {
-  var ci = window.chart5bInstance;
-  if (!ci) return;
-  ci.data.datasets.forEach(function(ds, i) { ci.getDatasetMeta(i).hidden = show ? false : true; });
-  ci.update();
-}
-
-// =========== Chart 6: Top5 deduct weekly trend ===========
-function updateChart6() {
-  const ctx = document.getElementById('chart6').getContext('2d');
-  if (window.chart6Instance) window.chart6Instance.destroy();
-  const labels = T5_ACTIVE_IX.map(function(i) { return fmtWeek(T5_WEEKS[i] || ('周' + (i+1)), T5_WEEKS_DATES[i] || ''); });
-  const colors = ['#e74c3c','#e67e22','#f39c12','#3498db','#9b59b6'];
-  const personKeys = Object.keys(T5_PERSONS);
-  const datasets = personKeys.map(function(p, i) {
-    return {
-      label: p + '(' + T5_PERSONS[p].group + ')-共' + T5_PERSONS[p].total + '次',
-      data: T5_ACTIVE_IX.map(function(wi) { return (T5_PERSONS[p].weekly[wi] || 0); }),
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length],
-      borderWidth: 3,
-      tension: 0.3,
-      fill: false,
-      pointRadius: 6,
-      pointHoverRadius: 9,
-      datalabels: { color: '#333', anchor: 'end', align: 'end', font: { weight: 'bold', size: 13 }, formatter: function(v) { return v > 0 ? v : ''; } }
-    };
-  });
-  window.chart6Instance = new Chart(ctx, {
-    type: 'line',
-    data: { labels: labels, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 }, onClick: function(e, item, legend) { var idx = item.datasetIndex; legend.chart.getDatasetMeta(idx).hidden = !legend.chart.getDatasetMeta(idx).hidden; legend.chart.update(); } },
-        datalabels: { display: true }
-      },
-      scales: { y: { beginAtZero: true, title: { display: true, text: '扣分次数' } }, x: { title: { display: true, text: '周次' } } }
-    }
-  });
-}
-function toggleAllChart6(show) {
-  var ci = window.chart6Instance;
-  if (!ci) return;
-  ci.data.datasets.forEach(function(ds, i) { ci.getDatasetMeta(i).hidden = show ? false : true; });
-  ci.update();
-}
-
-// =========== Chart 7: Top5 Error Type Details (filterable chart) ===========
-var chart7Colors = ["#CC0000","#FF6600","#0033CC","#9900CC","#009999","#66CC00","#FF6600","#00CCCC"];
-
-function updateChart7() {
-  var personKeys = Object.keys(T5_ERROR_DETAILS);
-  if (personKeys.length === 0) return;
-  var selPerson = document.getElementById("personSelect7").value;
-
-  var labels, datasets;
-
-  if (selPerson === "all") {
-    // 全部人员模式：X轴=人员，每种差错类型一个数据系列
-    labels = personKeys.map(function(p) { return p + "(" + T5_ERROR_DETAILS[p].group + ")"; });
-
-    // 收集所有差错类型
-    var allErrorTypes = [];
-    personKeys.forEach(function(p) {
-      T5_ERROR_DETAILS[p].error_types.forEach(function(et) {
-        if (allErrorTypes.indexOf(et.name) === -1) allErrorTypes.push(et.name);
-      });
-    });
-
-    datasets = allErrorTypes.map(function(etName, etIdx) {
-      var c = chart7Colors[etIdx % chart7Colors.length];
-      return {
-        label: etName,
-        data: personKeys.map(function(p) {
-          var found = T5_ERROR_DETAILS[p].error_types.filter(function(x) { return x.name === etName; });
-          return found.length > 0 ? found[0].count : 0;
-        }),
-        backgroundColor: c,
-        borderRadius: 4,
-        datalabels: { color: c, anchor: "end", align: "end", font: { weight: "bold", size: 10 }, formatter: function(v) { return v > 0 ? v : ""; } }
-      };
-    });
-  } else {
-    // 单人模式：X轴=差错类型，该人每种差错一个柱子
-    var info = T5_ERROR_DETAILS[selPerson];
-    if (!info) return;
-    labels = info.error_types.map(function(et) { return et.name; });
-    var c = chart7Colors[0];
-    datasets = [{
-      label: selPerson + "(" + info.group + ")",
-      data: info.error_types.map(function(et) { return et.count; }),
-      backgroundColor: c,
-      borderRadius: 4,
-      datalabels: { color: c, anchor: "end", align: "end", font: { weight: "bold", size: 12 }, formatter: function(v) { return v > 0 ? v : ""; } }
-    }];
-  }
-
-  var ctx = document.getElementById("chart7").getContext("2d");
-  if (window.chart7Instance) window.chart7Instance.destroy();
-  window.chart7Instance = new Chart(ctx, {
-    type: "bar",
-    data: { labels: labels, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: "top", labels: { font: { size: 10 } } },
-        datalabels: { display: true }
-      },
-      scales: {
-        y: { beginAtZero: true, title: { display: true, text: "扣分次数" } },
-        x: { title: { display: true, text: selPerson === "all" ? "人员" : "差错类型" } }
-      }
-    }
-  });
-}
-
-// 填充 Chart 7 人员下拉框
-(function() {
-  var sel = document.getElementById("personSelect7");
-  sel.add(new Option("全部人员", "all"));
-  Object.keys(T5_ERROR_DETAILS).sort().forEach(function(p) {
-    var g = T5_ERROR_DETAILS[p].group || "";
-    sel.add(new Option(p + (g ? " (" + g + ")" : ""), p));
-  });
-})();
-
-// =========== Chart 8: Error Type Drill-down ===========
-var chart8Colors = ["#CC0000","#FF6600","#0033CC","#9900CC","#009999","#33AA00","#CC6600","#006699","#993366","#669900"];
 
 function populateChart8Periods() {
   var mode = document.getElementById("modeSelect8").value;
@@ -912,7 +560,10 @@ function populateChart8Periods() {
       sel.add(new Option(fmtWeek(w, d), i));
     });
   }
+  sel.selectedIndex = 0;
 }
+
+var chart8Colors = ["#CC0000","#FF6600","#0033CC","#9900CC","#009999","#33AA00","#CC6600","#006699","#993366","#669900","#CC0066"];
 
 function getChart8Data() {
   var mode = document.getElementById("modeSelect8").value;
@@ -1040,15 +691,145 @@ function resetChart8Selection() {
   document.getElementById("resetChart8Btn").style.display = "none";
 }
 
+
+// =========== Chart 4: Group Comparison (Monthly/Weekly, Bar/Line) ===========
+// 小组对比颜色：田敏组=蓝色系，李师组=红色系，扣分/加分用透明度区分
+var chart4GDColors = {
+  '田敏组': {deduct: '#2563EB', bonus: '#60A5FA'},
+  '李师组': {deduct: '#DC2626', bonus: '#F87171'}
+};
+
+function updateChart4() {
+  var ctx = document.getElementById('chart4').getContext('2d');
+  if (window.chart4Instance) window.chart4Instance.destroy();
+  document.getElementById('chart4Info').style.display = 'none';
+  document.getElementById('resetChart4Btn').style.display = 'none';
+  var dim = document.getElementById('dimSelect4').value;
+  var chartType = document.getElementById('chartType4').value;
+  var labels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
+  var groups = GC_GROUP_NAMES;
+  var deductData = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
+  var bonusData = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+  var datasets = [];
+  groups.forEach(function(g, i) {
+    var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
+    datasets.push({label: g + '-扣分', data: deductData[g] || labels.map(function(){return 0;}), backgroundColor: cols.deduct, borderColor: cols.deduct, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.deduct, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+    datasets.push({label: g + '-加分', data: bonusData[g] || labels.map(function(){return 0;}), backgroundColor: cols.bonus, borderColor: cols.bonus, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.bonus, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+  });
+  window.chart4Instance = new Chart(ctx, {
+    type: chartType,
+    data: {labels: labels, datasets: datasets},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'top', labels: {font: {size: 10}}},
+        datalabels: {display: true}
+      },
+      scales: {y: {beginAtZero: true, title: {display: true, text: '数量'}}},
+      onClick: function(e) {
+        var chart = window.chart4Instance;
+        if (!chart) return;
+        var dsActive = chart.getElementsAtEventForMode(e, 'dataset', { intersect: true });
+        if (dsActive.length === 0) return;
+        var dsIdx = dsActive[0].datasetIndex;
+        var dsLabel = chart.data.datasets[dsIdx].label || '';
+        var idx = chart.getElementsAtEventForMode(e, 'index', { intersect: true });
+        if (idx.length === 0) return;
+        var periodIdx = idx[0].index;
+        var label = chart.data.labels[periodIdx];
+        var parts = dsLabel.split('-');
+        if (parts.length < 2) return;
+        var groupName = parts[0];
+        var type = parts[1];
+        var dim = document.getElementById('dimSelect4').value;
+        var drillData = [];
+        CHART1.persons.forEach(function(p, pi) {
+          if (CHART1.groups[pi] !== groupName) return;
+          var count = 0;
+          if (dim === 'monthly') {
+            count = type === '扣分' ? ((CHART1.deduct[pi]||[])[periodIdx]||0) : ((CHART1.bonus[pi]||[])[periodIdx]||0);
+          } else {
+            var pData = CHART2.personData[p];
+            if (!pData) return;
+            count = (type === '扣分' ? (pData.deduct||[])[periodIdx] : (pData.bonus||[])[periodIdx]) || 0;
+          }
+          if (count > 0) drillData.push({name: p, count: count, pi: pi});
+        });
+        drillData.sort(function(a, b) { return b.count - a.count; });
+        if (drillData.length === 0) return;
+        var html = '<div style="margin-bottom:8px;"><strong>' + label + ' · ' + dsLabel + '</strong> — 点击人员查看差错类型：</div><div style="display:flex;flex-wrap:wrap;gap:4px;">';
+        drillData.forEach(function(d) {
+          html += '<span class="chart4-person-chip" data-person="' + d.name + '" data-period="' + periodIdx + '" data-dim="' + dim + '" data-type="' + type + '" style="display:inline-block;margin:2px;padding:4px 14px;background:#f0f0f0;border-radius:14px;font-size:13px;cursor:pointer;border:1px solid #ddd;">' + d.name + ': ' + d.count + '条</span>';
+        });
+        html += '</div>';
+        document.getElementById('chart4Info').innerHTML = html;
+        document.getElementById('chart4Info').style.display = 'block';
+        document.getElementById('resetChart4Btn').style.display = 'inline-block';
+        document.querySelectorAll('.chart4-person-chip').forEach(function(el) {
+          el.addEventListener('click', function() {
+            var person = this.getAttribute('data-person');
+            var pIdx = parseInt(this.getAttribute('data-period'));
+            var d = this.getAttribute('data-dim');
+            var t = this.getAttribute('data-type');
+            var detailData, periodKey;
+            if (d === 'monthly') {
+              var mKeys = Object.keys(ETD_MONTHLY).sort();
+              periodKey = mKeys[pIdx];
+              detailData = ETD_MONTHLY[periodKey] || {};
+            } else {
+              periodKey = GC_WEEKS[pIdx];
+              detailData = ETD_WEEKLY[periodKey] || {};
+            }
+            var personErrors = detailData[person] || {};
+            var errorEntries = Object.keys(personErrors).filter(function(k) { return personErrors[k] > 0; }).map(function(k) { return {name: k, count: personErrors[k]}; }).sort(function(a, b) { return b.count - a.count; });
+            if (errorEntries.length === 0) {
+              document.getElementById('chart4Info').innerHTML = '<div><strong>' + person + '</strong> 在本时段无差错类型明细</div><div style="margin-top:8px;"><span style="color:#667eea;cursor:pointer;font-size:12px;" onclick="updateChart4()">&#8592; 返回小组概览</span></div>';
+              return;
+            }
+            var h = '<div style="margin-bottom:6px;"><strong>' + person + '</strong> 的扣分明细（' + periodKey + '）：</div><div style="display:flex;flex-wrap:wrap;gap:4px;">';
+            errorEntries.forEach(function(e) { h += '<span style="display:inline-block;margin:2px;padding:3px 12px;background:#ffe0e0;border-radius:12px;font-size:12px;">' + e.name + ': ' + e.count + '条</span>'; });
+            h += '</div><div style="margin-top:8px;"><span style="color:#667eea;cursor:pointer;font-size:12px;" onclick="updateChart4()">&#8592; 返回小组概览</span></div>';
+            document.getElementById('chart4Info').innerHTML = h;
+          });
+        });
+      }
+    }
+  });
+}
+
+function resetChart4Drill() {
+  document.getElementById('chart4Info').style.display = 'none';
+  document.getElementById('resetChart4Btn').style.display = 'none';
+}
+
+// =========== Chart 5: Group Change (展示扣分/加分条数) ===========
+function updateChart5() {
+  var ctx = document.getElementById('chart5').getContext('2d');
+  if (window.chart5Instance) window.chart5Instance.destroy();
+  var dim = document.getElementById('dimSelect5').value;
+  var chartType = document.getElementById('chartType5').value;
+  var selGroup = document.getElementById('groupSelect5').value;
+  var labels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
+  var groups = selGroup === 'all' ? GC_GROUP_NAMES : [selGroup];
+  var deductData = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
+  var bonusData = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
+  var datasets = [];
+  groups.forEach(function(g, gi) {
+    var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
+    datasets.push({label: g + '-扣分', data: deductData[g] || labels.map(function(){return 0;}), backgroundColor: cols.deduct, borderColor: cols.deduct, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.deduct, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+    datasets.push({label: g + '-加分', data: bonusData[g] || labels.map(function(){return 0;}), backgroundColor: cols.bonus, borderColor: cols.bonus, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.bonus, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+  });
+  window.chart5Instance = new Chart(ctx, {
+    type: chartType == 'bar' ? 'bar' : 'line',
+    data: {labels: labels, datasets: datasets},
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top', labels: {font: {size: 10}}}, datalabels: {display: true}}, scales: {y: {beginAtZero: true, title: {display: true, text: '条数'}}}}
+  });
+}
+(function() {var sel=document.getElementById('groupSelect5');GC_GROUP_NAMES.forEach(function(g){sel.add(new Option(g,g));});})();
 // =========== Init all ===========
 try { updateChart1(); } catch(e) { console.error('Chart1 error:', e); }
-try { updateChart2(); } catch(e) { console.error('Chart2 error:', e); }
-try { updateChart3(); } catch(e) { console.error('Chart3 error:', e); }
 try { updateChart4(); } catch(e) { console.error('Chart4 error:', e); }
-try { renderChart5a(); } catch(e) { console.error('Chart5a error:', e); }
-try { renderChart5b(); } catch(e) { console.error('Chart5b error:', e); }
-try { updateChart6(); } catch(e) { console.error('Chart6 error:', e); }
-try { updateChart7(); } catch(e) { console.error('Chart7 error:', e); }
+try { updateChart5(); } catch(e) { console.error('Chart5 error:', e); }
 try { updateChart8(); } catch(e) { console.error('Chart8 error:', e); }
 </script>
 </body>
