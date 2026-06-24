@@ -352,20 +352,32 @@ const GC_WEEKLY_BONUS = ''' + gc_weekly_bonus_json + ''';
   }
   html += '</div>';
 
-  // ② 月环比扣分下降人员前三
+  // ② 月环比扣分下降人员前三 + 上升前三
   html += '<div style="margin-bottom:12px;">';
   html += '<strong>\u2461 \u6708\u73af\u6bd4\u6263\u5206\u4e0b\u964d\u524d\u4e09\uff1a</strong> ';
   var monthlyImprovers = [];
+  var monthlyWorseners = [];
   CHART1.persons.forEach(function(p, pi) {
     var cur = (CHART1.deduct[pi]||[])[lastMi]||0;
     var prev = (CHART1.deduct[pi]||[])[prevMi]||0;
     if (cur < prev) monthlyImprovers.push({name: p, group: CHART1.groups[pi]||'', decrease: prev - cur});
+    if (cur > prev) monthlyWorseners.push({name: p, group: CHART1.groups[pi]||'', increase: cur - prev});
   });
   monthlyImprovers.sort(function(a, b) { return b.decrease - a.decrease; });
   var top3m = monthlyImprovers.slice(0, 3);
   if (top3m.length > 0) {
     top3m.forEach(function(p, i) {
       html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#e8f5e9;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') \u2193' + p.decrease + '条</span>';
+    });
+  } else {
+    html += '<span style="color:#999;font-size:12px;">无</span>';
+  }
+  monthlyWorseners.sort(function(a, b) { return b.increase - a.increase; });
+  var up3m = monthlyWorseners.slice(0, 3);
+  html += ' &nbsp;|&nbsp; <strong>\u2191 上升前三：</strong> ';
+  if (up3m.length > 0) {
+    up3m.forEach(function(p, i) {
+      html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#ffebee;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') \u2191' + p.increase + '条</span>';
     });
   } else {
     html += '<span style="color:#999;font-size:12px;">无</span>';
@@ -382,17 +394,29 @@ const GC_WEEKLY_BONUS = ''' + gc_weekly_bonus_json + ''';
     var lastWk = activeWeeks[activeWeeks.length - 1];
     var prevWk = activeWeeks[activeWeeks.length - 2];
     var weeklyImprovers = [];
+    var weeklyWorseners = [];
     Object.keys(CHART2.personData).forEach(function(p) {
       var pd = CHART2.personData[p];
       var cur = (pd.deduct||[])[lastWk]||0;
       var prev = (pd.deduct||[])[prevWk]||0;
       if (cur < prev) weeklyImprovers.push({name: p, group: pd.group||'', decrease: prev - cur});
+      if (cur > prev) weeklyWorseners.push({name: p, group: pd.group||'', increase: cur - prev});
     });
     weeklyImprovers.sort(function(a, b) { return b.decrease - a.decrease; });
     var top3w = weeklyImprovers.slice(0, 3);
     if (top3w.length > 0) {
       top3w.forEach(function(p, i) {
         html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#e3f2fd;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') \u2193' + p.decrease + '条</span>';
+      });
+    } else {
+      html += '<span style="color:#999;font-size:12px;">无</span>';
+    }
+    weeklyWorseners.sort(function(a, b) { return b.increase - a.increase; });
+    var up3w = weeklyWorseners.slice(0, 3);
+    html += ' &nbsp;|&nbsp; <strong>\u2191 上升前三：</strong> ';
+    if (up3w.length > 0) {
+      up3w.forEach(function(p, i) {
+        html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#ffcdd2;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + p.name + ' (' + p.group + ') \u2191' + p.increase + '条</span>';
       });
     } else {
       html += '<span style="color:#999;font-size:12px;">无</span>';
@@ -406,10 +430,12 @@ const GC_WEEKLY_BONUS = ''' + gc_weekly_bonus_json + ''';
   html += '<div style="margin-bottom:12px;">';
   html += '<strong>\u2463 \u6708\u73af\u6bd4\u6263\u5206\u7c7b\u578b\u4e0b\u964d\u524d\u4e09\uff1a</strong> ';
   var etMonthlyChanges = [];
+  var etMonthlyWorse = [];
   CHART3.errorTypes.forEach(function(et) {
     var cur = (et.values||[])[lastMi]||0;
     var prev = (et.values||[])[prevMi]||0;
     if (cur < prev) etMonthlyChanges.push({name: et.name, decrease: prev - cur});
+    if (cur > prev) etMonthlyWorse.push({name: et.name, increase: cur - prev});
   });
   etMonthlyChanges.sort(function(a, b) { return b.decrease - a.decrease; });
   var top3etm = etMonthlyChanges.slice(0, 3);
@@ -420,15 +446,26 @@ const GC_WEEKLY_BONUS = ''' + gc_weekly_bonus_json + ''';
   } else {
     html += '<span style="color:#999;font-size:12px;">无</span>';
   }
+  etMonthlyWorse.sort(function(a, b) { return b.increase - a.increase; });
+  var up3etm = etMonthlyWorse.slice(0, 3);
+  html += ' &nbsp;|&nbsp; <strong>\u2191 上升前三：</strong> ';
+  if (up3etm.length > 0) {
+    up3etm.forEach(function(et, i) {
+      html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#fce4ec;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + et.name + ' \u2191' + et.increase + '次</span>';
+    });
+  } else {
+    html += '<span style="color:#999;font-size:12px;">无</span>';
+  }
   html += '</div>';
 
-  // ⑤ 周环比差错类型前三
+  // ⑤ 周环比差错类型下降前三 + 上升前三
   html += '<div style="margin-bottom:12px;">';
   html += '<strong>\u2464 \u5468\u73af\u6bd4\u6263\u5206\u7c7b\u578b\u4e0b\u964d\u524d\u4e09\uff1a</strong> ';
   if (activeWeeks.length >= 2) {
     var lastWkKey = ETD_WEEKS[activeWeeks[activeWeeks.length - 1]];
     var prevWkKey = ETD_WEEKS[activeWeeks[activeWeeks.length - 2]];
     var etWeeklyChanges = [];
+    var etWeeklyWorse = [];
     ETD_ERROR_TYPES.forEach(function(et) {
       if (!et) return;
       var cur = 0, prev = 0;
@@ -443,12 +480,23 @@ const GC_WEEKLY_BONUS = ''' + gc_weekly_bonus_json + ''';
         });
       }
       if (cur < prev) etWeeklyChanges.push({name: et, decrease: prev - cur});
+      if (cur > prev) etWeeklyWorse.push({name: et, increase: cur - prev});
     });
     etWeeklyChanges.sort(function(a, b) { return b.decrease - a.decrease; });
     var top3etw = etWeeklyChanges.slice(0, 3);
     if (top3etw.length > 0) {
       top3etw.forEach(function(et, i) {
         html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#fce4ec;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + et.name + ' \u2193' + et.decrease + '次</span>';
+      });
+    } else {
+      html += '<span style="color:#999;font-size:12px;">无</span>';
+    }
+    etWeeklyWorse.sort(function(a, b) { return b.increase - a.increase; });
+    var up3etw = etWeeklyWorse.slice(0, 3);
+    html += ' &nbsp;|&nbsp; <strong>\u2191 上升前三：</strong> ';
+    if (up3etw.length > 0) {
+      up3etw.forEach(function(et, i) {
+        html += '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;background:#ffebee;border-radius:10px;font-size:12px;">' + (i+1) + '. ' + et.name + ' \u2191' + et.increase + '次</span>';
       });
     } else {
       html += '<span style="color:#999;font-size:12px;">无</span>';
