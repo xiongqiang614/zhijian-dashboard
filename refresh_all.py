@@ -1,45 +1,57 @@
 # -*- coding: utf-8 -*-
 """
-一键刷新向导：运行本脚本即可从Excel重新提取数据、生成报告和看板
+一键刷新+云端部署：重新提取Excel数据 → 生成看板 → 推送到GitHub Pages
 """
-import subprocess
-import sys
-import os
+import subprocess, sys, os, shutil
 
-scripts = [
-    'generate_report.py',
-    'generate_dashboard.py'
-]
+BASE_DIR = r'C:\Users\86135\WorkBuddy\2026-06-23-14-49-40'
+PYTHON = r'C:\Users\86135\.workbuddy\binaries\python\versions\3.13.12\python.exe'
+XLSX_PATH = r'C:\Users\86135\Desktop\客服质检数据自动分析模板.xlsx'
+HTML_OUT = os.path.join(BASE_DIR, '质检可视化数据看板.html')
+INDEX_OUT = os.path.join(BASE_DIR, 'index.html')
 
-base_dir = r'C:\Users\86135\WorkBuddy\2026-06-23-14-49-40'
-python = r'C:\Users\86135\.workbuddy\binaries\python\versions\3.13.12\python.exe'
-
-print("=" * 60)
-print("  客服质检数据看板 - 一键刷新工具")
-print("=" * 60)
-print(f"\n🔍 数据源: C:\\Users\\86135\\Desktop\\客服质检数据自动分析模板.xlsx")
-print(f"📁 输出目录: {base_dir}")
-print()
-
-for script in scripts:
-    script_path = os.path.join(base_dir, script)
-    print(f"▶ 正在运行: {script} ...")
-    result = subprocess.run([python, script_path], capture_output=True, text=True)
+def run_step(script):
+    script_path = os.path.join(BASE_DIR, script)
+    print('[运行] ' + script + ' ...')
+    result = subprocess.run([PYTHON, script_path], capture_output=True, text=True)
     if result.returncode == 0:
-        print(f"  ✅ 完成")
+        print('  [OK]')
+        return True
     else:
-        print(f"  ❌ 失败: {result.stderr}")
-        sys.exit(1)
+        print('  [失败] ' + result.stderr)
+        return False
+
+print('=' * 60)
+print('  客服质检数据看板 - 一键刷新 + 云端部署')
+print('=' * 60)
+print()
+print('[数据源] ' + XLSX_PATH)
+
+# Step 1: 提取数据
+if not run_step('generate_report.py'):
+    sys.exit(1)
+
+# Step 2: 生成看板
+if not run_step('generate_dashboard.py'):
+    sys.exit(1)
+
+# Step 3: 复制为 index.html
+print('[复制] 质检可视化数据看板.html --to-> index.html')
+shutil.copy2(HTML_OUT, INDEX_OUT)
+print('  [OK]')
+
+# Step 4: 推送到 GitHub Pages
+print('[云端] 推送到 GitHub Pages ...')
+push_result = subprocess.run([PYTHON, os.path.join(BASE_DIR, 'push_to_github.py')], capture_output=True, text=True)
+print(push_result.stdout.strip())
+if push_result.returncode != 0:
+    print('  [警告] ' + push_result.stderr)
 
 print()
-print("=" * 60)
-print("  ✨ 全部完成！已生成以下文件：")
-print(f"     1. {base_dir}\\6月质检分析报告.md")
-print(f"     2. {base_dir}\\质检可视化数据看板.html")
+print('=' * 60)
+print('  [完成] 全部刷新 + 部署成功！')
+print('  [本地] ' + HTML_OUT)
+print('  [云端] https://xiongqiang614.github.io/zhijian-dashboard/')
 print()
-print("  ☁️  云端分享链接：")
-print("     https://a75ef28f0f82471ba0a0f5848684264f.app.codebuddy.work")
-print()
-print("  💡 修改Excel后重新运行本脚本即可刷新内容")
-print("  ☁️ 更新云端：告诉 assistant '请更新云端看板'")
-print("=" * 60)
+print('  再次更新：修改Excel后，重新运行本脚本')
+print('=' * 60)
