@@ -98,7 +98,7 @@ select.person-select:focus { border-color: #667eea; }
 
   <!-- Chart 4: 小组对比分析 -->
   <div class="card full-width">
-    <h3>&#128101; &#9314; 小组对比分析 <small>田敏组 vs 李师组，可切换月度/周度、柱形/折线、筛选小组</small></h3>
+    <h3>&#128101; &#9314; 小组对比分析 <small>田敏组 vs 李师组，可切换月度/周度、柱形/折线、筛选小组、条数/环比</small></h3>
     <div class="toolbar">
       <label>维度：</label>
       <select class="person-select" id="dimSelect4" onchange="updateChart4()">
@@ -110,6 +110,11 @@ select.person-select:focus { border-color: #667eea; }
         <option value="bar" selected>柱状图</option>
         <option value="line">折线图</option>
       </select>
+      <label>显示：</label>
+      <select class="person-select" id="viewMode4" onchange="updateChart4()">
+        <option value="count" selected>条数</option>
+        <option value="hb">环比</option>
+      </select>
       <label>小组：</label>
       <select class="person-select" id="groupSelect4" onchange="updateChart4()">
         <option value="all">全部小组</option>
@@ -118,33 +123,6 @@ select.person-select:focus { border-color: #667eea; }
     <div id="chart4Info" style="margin-bottom:10px;font-size:13px;color:#555;display:none;"></div>
     <button id="resetChart4Btn" onclick="resetChart4Drill()" style="display:none;background:#e74c3c;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;margin-bottom:8px;">&#10005; 返回小组概览</button>
     <div class="chart-container tall"><canvas id="chart4"></canvas></div>
-  </div>
-
-  <!-- Chart 5: 小组环比变化 -->
-  <div class="card full-width">
-    <h3>&#128202; &#9315; 小组扣分/加分 <small>月度/周度切换，柱形/折线，可筛选小组、切换条数/环比</small></h3>
-    <div class="toolbar">
-      <label>维度：</label>
-      <select class="person-select" id="dimSelect5" onchange="updateChart5()">
-        <option value="monthly" selected>月度</option>
-        <option value="weekly">周度</option>
-      </select>
-      <label>样式：</label>
-      <select class="person-select" id="chartType5" onchange="updateChart5()">
-        <option value="bar" selected>柱状图</option>
-        <option value="line">折线图</option>
-      </select>
-      <label>显示：</label>
-      <select class="person-select" id="viewMode5" onchange="updateChart5()">
-        <option value="count" selected>条数</option>
-        <option value="hb">环比</option>
-      </select>
-      <label>小组：</label>
-      <select class="person-select" id="groupSelect5" onchange="updateChart5()">
-        <option value="all">全部小组</option>
-      </select>
-    </div>
-    <div class="chart-container tall"><canvas id="chart5"></canvas></div>
   </div>
 </div>
 
@@ -710,6 +688,16 @@ function resetChart8Selection() {
 
 // =========== Chart 4: Group Comparison (Monthly/Weekly, Bar/Line) ===========
 // 小组对比颜色：田敏组=蓝色系，李师组=红色系，扣分/加分用透明度区分
+// 环比计算函数
+function calcHb(arr) {
+  return arr.map(function(v, i) {
+    if (i === 0) return 0;
+    var prev = arr[i-1];
+    if (prev === 0) return v > 0 ? 100 : 0;
+    return Math.round((v - prev) / prev * 100);
+  });
+}
+
 var chart4GDColors = {
   '田敏组': {deduct: '#2563EB', bonus: '#60A5FA'},
   '李师组': {deduct: '#DC2626', bonus: '#F87171'}
@@ -722,6 +710,7 @@ function updateChart4() {
   document.getElementById('resetChart4Btn').style.display = 'none';
   var dim = document.getElementById('dimSelect4').value;
   var chartType = document.getElementById('chartType4').value;
+  var viewMode = document.getElementById('viewMode4').value;
   var selGroup = document.getElementById('groupSelect4').value;
 
   // Filter labels and data for weekly mode: only active weeks (with dates)
@@ -749,11 +738,29 @@ function updateChart4() {
   window.chart4ActiveIx = activeIx || null;
 
   var groups = selGroup === 'all' ? GC_GROUP_NAMES : [selGroup];
+
+  // Handle 环比 mode
+  var yLabel, fmtVal;
+  if (viewMode === 'hb') {
+    yLabel = '环比 (%)';
+    fmtVal = function(v) { return v > 0 ? '+' + v + '%' : (v === 0 ? '' : v + '%'); };
+    // Calculate 环比 for each group's data
+    Object.keys(deductData).forEach(function(g) {
+      deductData[g] = calcHb(deductData[g] || labels.map(function(){return 0;}));
+    });
+    Object.keys(bonusData).forEach(function(g) {
+      bonusData[g] = calcHb(bonusData[g] || labels.map(function(){return 0;}));
+    });
+  } else {
+    yLabel = '数量';
+    fmtVal = function(v) { return v > 0 ? String(v) : ''; };
+  }
+
   var datasets = [];
   groups.forEach(function(g, i) {
     var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
-    datasets.push({label: g + '-扣分', data: deductData[g] || labels.map(function(){return 0;}), backgroundColor: cols.deduct, borderColor: cols.deduct, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.deduct, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
-    datasets.push({label: g + '-加分', data: bonusData[g] || labels.map(function(){return 0;}), backgroundColor: cols.bonus, borderColor: cols.bonus, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.bonus, anchor: 'end', align: 'end', font: {size: 10}, formatter: function(v){return v>0?v:'';}}});
+    datasets.push({label: g + '-扣分', data: deductData[g] || labels.map(function(){return 0;}), backgroundColor: cols.deduct, borderColor: cols.deduct, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.deduct, anchor: 'end', align: 'end', font: {size: 10, weight: 'bold'}, formatter: fmtVal}});
+    datasets.push({label: g + '-加分', data: bonusData[g] || labels.map(function(){return 0;}), backgroundColor: cols.bonus, borderColor: cols.bonus, borderWidth: 2, tension: 0.3, fill: false, datalabels: {color: cols.bonus, anchor: 'end', align: 'end', font: {size: 10, weight: 'bold'}, formatter: fmtVal}});
   });
   window.chart4Instance = new Chart(ctx, {
     type: chartType,
@@ -764,7 +771,7 @@ function updateChart4() {
         legend: {position: 'top', labels: {font: {size: 10}}},
         datalabels: {display: true}
       },
-      scales: {y: {beginAtZero: true, title: {display: true, text: '数量'}}},
+      scales: {y: {beginAtZero: true, title: {display: true, text: yLabel}}},
       onClick: function(e) {
         var chart = window.chart4Instance;
         if (!chart) return;
@@ -850,123 +857,9 @@ function resetChart4Drill() {
   });
 })();
 
-// =========== Chart 5: Group Change (展示扣分/加分条数或环比) ===========
-function calcHb(arr) {
-  // Calculate 环比 (period-over-period) percentage change
-  return arr.map(function(v, i) {
-    if (i === 0) return 0; // No previous period
-    var prev = arr[i-1];
-    if (prev === 0) return v > 0 ? 100 : 0;
-    return Math.round((v - prev) / prev * 100);
-  });
-}
-
-function updateChart5() {
-  var ctx = document.getElementById('chart5').getContext('2d');
-  if (window.chart5Instance) window.chart5Instance.destroy();
-  var dim = document.getElementById('dimSelect5').value;
-  var chartType = document.getElementById('chartType5').value;
-  var viewMode = document.getElementById('viewMode5').value;
-  var selGroup = document.getElementById('groupSelect5').value;
-
-  // Filter labels and data for weekly mode: only active weeks (with dates)
-  var rawLabels = dim === 'monthly' ? GC_MONTHS : GC_WEEKS;
-  var rawDeduct = dim === 'monthly' ? GC_MONTHLY_DEDUCT : GC_WEEKLY_DEDUCT;
-  var rawBonus = dim === 'monthly' ? GC_MONTHLY_BONUS : GC_WEEKLY_BONUS;
-
-  var labels, deductData, bonusData;
-  if (dim === 'weekly') {
-    var activeIx = [];
-    GC_WEEK_DATES.forEach(function(d, i) { if (d) activeIx.push(i); });
-    labels = activeIx.map(function(i) { return rawLabels[i]; });
-    deductData = {};
-    bonusData = {};
-    GC_GROUP_NAMES.forEach(function(g) {
-      deductData[g] = activeIx.map(function(i) { return (rawDeduct[g]||[])[i]||0; });
-      bonusData[g] = activeIx.map(function(i) { return (rawBonus[g]||[])[i]||0; });
-    });
-  } else {
-    labels = rawLabels;
-    deductData = rawDeduct;
-    bonusData = rawBonus;
-  }
-
-  var groups = selGroup === 'all' ? GC_GROUP_NAMES : [selGroup];
-  var yLabel, fmtVal;
-  if (viewMode === 'hb') {
-    yLabel = '环比 (%)';
-    fmtVal = function(v) { return v > 0 ? '+' + v + '%' : (v === 0 ? '' : v + '%'); };
-  } else {
-    yLabel = '条数';
-    fmtVal = function(v) { return v > 0 ? String(v) : ''; };
-  }
-
-  var datasets = [];
-  groups.forEach(function(g, gi) {
-    var cols = chart4GDColors[g] || {deduct: '#999', bonus: '#ccc'};
-    var dArr = deductData[g] || labels.map(function(){return 0;});
-    var bArr = bonusData[g] || labels.map(function(){return 0;});
-    if (viewMode === 'hb') {
-      dArr = calcHb(dArr);
-      bArr = calcHb(bArr);
-    }
-    datasets.push({
-      label: g + '-扣分',
-      data: dArr,
-      backgroundColor: cols.deduct,
-      borderColor: cols.deduct,
-      borderWidth: 2,
-      tension: 0.3,
-      fill: false,
-      datalabels: {
-        color: cols.deduct,
-        anchor: 'end',
-        align: 'end',
-        font: {size: 10, weight: 'bold'},
-        formatter: fmtVal
-      }
-    });
-    datasets.push({
-      label: g + '-加分',
-      data: bArr,
-      backgroundColor: cols.bonus,
-      borderColor: cols.bonus,
-      borderWidth: 2,
-      tension: 0.3,
-      fill: false,
-      datalabels: {
-        color: cols.bonus,
-        anchor: 'end',
-        align: 'end',
-        font: {size: 10, weight: 'bold'},
-        formatter: fmtVal
-      }
-    });
-  });
-  window.chart5Instance = new Chart(ctx, {
-    type: chartType == 'bar' ? 'bar' : 'line',
-    data: {labels: labels, datasets: datasets},
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {position: 'top', labels: {font: {size: 10}}},
-        datalabels: {display: true}
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {display: true, text: yLabel}
-        }
-      }
-    }
-  });
-}
-(function() {var sel=document.getElementById('groupSelect5');GC_GROUP_NAMES.forEach(function(g){sel.add(new Option(g,g));});})();
 // =========== Init all ===========
 try { updateChart1(); } catch(e) { console.error('Chart1 error:', e); }
 try { updateChart4(); } catch(e) { console.error('Chart4 error:', e); }
-try { updateChart5(); } catch(e) { console.error('Chart5 error:', e); }
 try { populateChart8Periods(); updateChart8(); } catch(e) { console.error('Chart8 error:', e); }
 </script>
 </body>
