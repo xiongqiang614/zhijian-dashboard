@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Excel source (too large, user keeps separately)
+*.xlsx
+
+# WorkBuddy files
+.workbuddy/
+
+# Deploy marker
+.deploy_marker
+.cloud_link.txt
