@@ -4,6 +4,7 @@ import json, os, re
 SCRIPT_DIR = 'C:/Users/86135/WorkBuddy/2026-06-23-14-49-40'
 JSON_PATH = os.path.join(SCRIPT_DIR, 'chart_data.json')
 HTML_PATH = os.path.join(SCRIPT_DIR, 'index.html')
+CHART_JS_PATH = os.path.join(SCRIPT_DIR, 'chart.umd.min.js')
 
 with open(JSON_PATH, 'r', encoding='utf-8') as f:
     data = json.load(f)
@@ -30,10 +31,7 @@ with open(HTML_PATH, 'w', encoding='utf-8') as f:
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>\u8d28\u68c0\u5728\u7ebf\u53ef\u89c6\u5316\u770b\u677f</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>window.CHART_LOADED = !!window.Chart;</script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script>window.DATALABELS_LOADED = !!window.ChartDataLabels;</script>
+<script>''' + open(CHART_JS_PATH, 'r', encoding='utf-8').read() + '''</script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:#f5f7fa; color:#333; padding:20px; }
@@ -155,7 +153,6 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
   </div>
 </div>
 <script>
-try { if(window.ChartDataLabels) Chart.register(ChartDataLabels); } catch(e){console.warn('databels:',e);}
 const DIMS = ''' + sections['dims'] + r''';
 const KPI = ''' + sections['kpi'] + r''';
 const EMP_STATS = ''' + sections['emp_stats'] + r''';
