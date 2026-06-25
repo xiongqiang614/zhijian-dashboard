@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>质检在线可视化看板</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>window.CHART_LOADED = !!window.Chart;</script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script>window.DATALABELS_LOADED = !!window.ChartDataLabels;</script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:#f5f7fa; color:#333; padding:20px; }
@@ -127,7 +129,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
   </div>
 </div>
 <script>
-Chart.register(ChartDataLabels);
+try { if(window.ChartDataLabels) Chart.register(ChartDataLabels); } catch(e){console.warn('databels:',e);}
 const DIMS = {"months": ["2025/07", "2025/08", "2025/09", "2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04", "2026/05", "2026/06"], "cur_month": "2026/06", "emps": ["仇青青", "何文", "刘玥燕", "刘赛男", "向玉婷", "吴倩倩", "吴靖偎", "周翔", "唐帼琼", "康利琦", "张艳燕", "张芳瑜", "张鹏程", "彭家逸", "彭阳斌", "李妍", "李庆", "李德奇", "杜娇", "杨阳", "林蓉", "欧阳思超", "欧阳香娥", "汤凌峰", "洪丹", "王静", "邢文瀚", "阳倩", "陆晓毅", "陈转", "陈鹤婷", "黎园", "龚海林"], "groups": ["客诉组", "未分组", "李师组", "田敏组", "罗雄强组"], "ets": ["业务流程差错", "主动性", "主动性欠缺", "信息提供错误", "信息泄露", "其他业务流程差错", "响应超时", "处理规范类", "小额打款普通差错", "小额打款重大差错", "应反馈未反馈", "情感共鸣", "整通未应答", "服务态度一级", "来电原因点选错误", "沟通表达", "表达力", "解决力", "解决力欠缺", "超服务范围承诺", "通话中断未回拨"], "levels": ["A(感知非常好)", "B(感知一般)", "C(感知差)", "当通表扬"], "checkers": ["组长", "质检"], "cts": ["其他类", "售后咨询", "售后服务类", "售后类别", "商品/活动信息类", "商品咨询", "商品活动咨询", "商品订单类", "平台政策相关", "物流/发货时间类", "物流退回"], "sources": ["kf", "ks"]};
 const KPI = {"total_deduct": 598, "total_bonus": 276, "total_errors": 631, "cur_month_deduct": 31, "cur_month_bonus": 10, "cur_month_errors": 31, "cur_month_total": 41, "monthly": {"2025/07": {"rec": 507, "deduct": 73, "bonus": 33, "errors": 73}, "2025/08": {"rec": 526, "deduct": 73, "bonus": 38, "errors": 73}, "2025/09": {"rec": 534, "deduct": 58, "bonus": 63, "errors": 58}, "2025/10": {"rec": 662, "deduct": 51, "bonus": 12, "errors": 51}, "2025/11": {"rec": 602, "deduct": 35, "bonus": 18, "errors": 37}, "2025/12": {"rec": 959, "deduct": 30, "bonus": 12, "errors": 44}, "2026/01": {"rec": 235, "deduct": 46, "bonus": 14, "errors": 46}, "2026/02": {"rec": 146, "deduct": 73, "bonus": 10, "errors": 73}, "2026/03": {"rec": 92, "deduct": 32, "bonus": 17, "errors": 32}, "2026/04": {"rec": 124, "deduct": 43, "bonus": 30, "errors": 43}, "2026/05": {"rec": 90, "deduct": 53, "bonus": 19, "errors": 53}, "2026/06": {"rec": 41, "deduct": 31, "bonus": 10, "errors": 31}}};
 const EMP_STATS = {"仇青青": {"group": "未分组", "rec": 43, "deduct": 4, "bonus": 6, "errors": 4}, "何文": {"group": "田敏组", "rec": 163, "deduct": 21, "bonus": 1, "errors": 21}, "刘玥燕": {"group": "李师组", "rec": 174, "deduct": 41, "bonus": 24, "errors": 41}, "刘赛男": {"group": "李师组", "rec": 142, "deduct": 5, "bonus": 18, "errors": 5}, "向玉婷": {"group": "田敏组", "rec": 155, "deduct": 22, "bonus": 17, "errors": 22}, "吴倩倩": {"group": "客诉组", "rec": 96, "deduct": 3, "bonus": 0, "errors": 4}, "吴靖偎": {"group": "田敏组", "rec": 145, "deduct": 8, "bonus": 7, "errors": 8}, "周翔": {"group": "客诉组", "rec": 97, "deduct": 6, "bonus": 3, "errors": 9}, "唐帼琼": {"group": "李师组", "rec": 146, "deduct": 36, "bonus": 0, "errors": 36}, "康利琦": {"group": "未分组", "rec": 172, "deduct": 17, "bonus": 17, "errors": 17}, "张艳燕": {"group": "客诉组", "rec": 85, "deduct": 1, "bonus": 0, "errors": 1}, "张芳瑜": {"group": "李师组", "rec": 144, "deduct": 14, "bonus": 4, "errors": 14}, "张鹏程": {"group": "客诉组", "rec": 97, "deduct": 14, "bonus": 0, "errors": 19}, "彭家逸": {"group": "罗雄强组", "rec": 120, "deduct": 17, "bonus": 1, "errors": 17}, "彭阳斌": {"group": "田敏组", "rec": 162, "deduct": 29, "bonus": 7, "errors": 29}, "李妍": {"group": "罗雄强组", "rec": 129, "deduct": 5, "bonus": 2, "errors": 5}, "李庆": {"group": "李师组", "rec": 162, "deduct": 15, "bonus": 30, "errors": 15}, "李德奇": {"group": "田敏组", "rec": 184, "deduct": 14, "bonus": 23, "errors": 14}, "杜娇": {"group": "李师组", "rec": 145, "deduct": 11, "bonus": 1, "errors": 11}, "杨阳": {"group": "李师组", "rec": 146, "deduct": 18, "bonus": 0, "errors": 18}, "林蓉": {"group": "田敏组", "rec": 153, "deduct": 17, "bonus": 0, "errors": 17}, "欧阳思超": {"group": "客诉组", "rec": 116, "deduct": 5, "bonus": 2, "errors": 6}, "欧阳香娥": {"group": "未分组", "rec": 144, "deduct": 32, "bonus": 4, "errors": 32}, "汤凌峰": {"group": "田敏组", "rec": 159, "deduct": 44, "bonus": 1, "errors": 44}, "洪丹": {"group": "客诉组", "rec": 103, "deduct": 7, "bonus": 1, "errors": 8}, "王静": {"group": "罗雄强组", "rec": 146, "deduct": 23, "bonus": 3, "errors": 23}, "邢文瀚": {"group": "客诉组", "rec": 179, "deduct": 12, "bonus": 0, "errors": 34}, "阳倩": {"group": "田敏组", "rec": 176, "deduct": 68, "bonus": 2, "errors": 68}, "陆晓毅": {"group": "罗雄强组", "rec": 144, "deduct": 16, "bonus": 13, "errors": 16}, "陈转": {"group": "李师组", "rec": 118, "deduct": 48, "bonus": 2, "errors": 48}, "陈鹤婷": {"group": "客诉组", "rec": 179, "deduct": 4, "bonus": 0, "errors": 4}, "黎园": {"group": "田敏组", "rec": 187, "deduct": 6, "bonus": 84, "errors": 6}, "龚海林": {"group": "田敏组", "rec": 146, "deduct": 15, "bonus": 3, "errors": 15}};
@@ -279,8 +281,16 @@ function renderDetail() {
   html += '</tbody></table>';
   document.getElementById('detailTableWrap').innerHTML = html;
 }
-initFilters();
-renderAll();
+function startApp() {
+  try {
+    initFilters();
+    renderAll();
+  } catch(e) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#e74c3c;"><h2>加载失败</h2><p>'+e.message+'</p><p>请刷新页面重试，或检查网络连接。</p></div>';
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startApp);
+else startApp();
 </script>
 <footer style="text-align:center;margin-top:30px;font-size:12px;color:#aaa;">数据更新方式：修改Excel后双击桌面「一键刷新质检看板.bat」</footer>
 </body>
