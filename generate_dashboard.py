@@ -223,7 +223,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
     log('Step 4: Chart version: ' + Chart.version);
     
     var inst = {};
-    var chartNames = ['Trend','EtTrend','Level','CallType','DeductRank','BonusRank','Quadrant','GroupCompare','GroupTrend','EtRank','EtTrend2','BmyCat','ProfileRadar','ProfileMonthly'];
+    var chartNames = ['chartTrend','chartEtTrend','chartLevel','chartCallType','chartDeductRank','chartBonusRank','chartQuadrant','chartGroupCompare','chartGroupTrend','chartEtRank','chartEtTrend2','chartBmyCat','chartProfileRadar','chartProfileMonthly','chartBmyTrend'];
     var SRC_LABEL = {"kf":"客服质检","ks":"客诉质检"};
     
     function fmtMonth(m) { return m.replace('/','年')+'月'; }
@@ -288,17 +288,112 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
         ].join('');
         
         var m = DIMS.months;
-        log('Step 7: Creating Trend chart...');
-        safeChart('Trend', { type:'bar', data:{ labels:m.map(fmtMonth), datasets:[
+        
+        log('Creating Trend chart...');
+        safeChart('chartTrend', { type:'bar', data:{ labels:m.map(fmtMonth), datasets:[
           {label:'扣分',data:m.map(function(x){return data.filter(function(d){return d.m===x&&d.sc<0}).length}),backgroundColor:'#e74c3c',borderRadius:4},
           {label:'加分',data:m.map(function(x){return data.filter(function(d){return d.m===x&&d.sc>0}).length}),backgroundColor:'#27ae60',borderRadius:4}
         ]}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{position:'top'}}} });
         
-        log('Step 8: Trend chart OK, creating remaining charts...');
+        // EtTrend - top5 error types trend
+        var etStats = STORE.ET_STATS;
+        var top5 = Object.keys(etStats).sort(function(a,b){return etStats[b]-etStats[a]}).slice(0,5);
+        safeChart('chartEtTrend', { type:'line', data:{ labels:m.map(fmtMonth), datasets:top5.map(function(et,i){return{label:et,data:m.map(function(x){return data.filter(function(d){return d.et===et&&d.m===x}).length}),borderColor:COLORS[i],backgroundColor:COLORS[i],tension:0.3,fill:false}}) }, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'次数'}}},plugins:{legend:{position:'top',labels:{font:{size:10}}}}}});
+        
+        // Level distribution
+        var levels = DIMS.levels;
+        safeChart('chartLevel', { type:'doughnut', data:{labels:levels,datasets:[{data:levels.map(function(l){return data.filter(function(d){return d.lv===l}).length}),backgroundColor:['#27ae60','#f39c12','#e74c3c','#95a5a6']}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'}}}});
+        
+        // Call type distribution
+        var ctData = STORE.CT_DATA;
+        var ctKeys = Object.keys(ctData);
+        safeChart('chartCallType', { type:'pie', data:{labels:ctKeys,datasets:[{data:ctKeys.map(function(k){return data.filter(function(d){return d.ct===k}).length}),backgroundColor:COLORS.slice(0,ctKeys.length)}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+        
+        // Deduct rank
+        var empStats = STORE.EMP_STATS;
+        var empEntries = Object.keys(empStats).map(function(k){return{name:k,deduct:empStats[k].deduct,bonus:empStats[k].bonus,errors:empStats[k].errors}});
+        var dr = empEntries.slice().sort(function(a,b){return b.deduct-a.deduct}).slice(0,10).reverse();
+        if(dr.length) safeChart('chartDeductRank', { type:'bar', data:{labels:dr.map(function(d){return d.name}),datasets:[{label:'扣分条数',data:dr.map(function(d){return d.deduct}),backgroundColor:'#e74c3c',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{display:false}}}});
+        
+        // Bonus rank
+        var br = empEntries.slice().sort(function(a,b){return b.bonus-a.bonus}).slice(0,10).reverse();
+        if(br.length) safeChart('chartBonusRank', { type:'bar', data:{labels:br.map(function(d){return d.name}),datasets:[{label:'加分条数',data:br.map(function(d){return d.bonus}),backgroundColor:'#27ae60',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{display:false}}}});
+        
+        // Quadrant
+        var eq = empEntries;
+        safeChart('chartQuadrant', { type:'scatter', data:{datasets:[{label:'员工',data:eq.map(function(d){return{x:d.deduct,y:d.bonus}}),backgroundColor:eq.map(function(d){return d.deduct>=3&&d.bonus>=2?'#e74c3c':(d.deduct<3&&d.bonus>=2?'#27ae60':(d.deduct>=3&&d.bonus<2?'#e67e22':'#95a5a6'))}),pointRadius:8,pointHoverRadius:12}]}, options:{responsive:true,maintainAspectRatio:false,scales:{x:{title:{display:true,text:'扣分次数'},beginAtZero:true},y:{title:{display:true,text:'加分次数'},beginAtZero:true}},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return eq[ctx.dataIndex].name+': 扣分'+eq[ctx.dataIndex].deduct+'条, 加分'+eq[ctx.dataIndex].bonus+'条'}}}}}});
+        
+        // Group compare
+        var groups = DIMS.groups;
+        var gcolors = ['#2563EB','#DC2626','#F59E0B','#10B981','#8B5CF6'];
+        safeChart('chartGroupCompare', { type:'bar', data:{labels:['扣分','加分'],datasets:groups.map(function(g,i){return{label:g,data:[data.filter(function(d){return d.g===g&&d.sc<0}).length,data.filter(function(d){return d.g===g&&d.sc>0}).length],backgroundColor:gcolors[i%gcolors.length]}})}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{position:'top'}}}});
+        
+        // Group trend
+        var gds = [];
+        groups.forEach(function(g,i){
+          gds.push({label:g+'扣分',data:m.map(function(x){return data.filter(function(d){return d.g===g&&d.m===x&&d.sc<0}).length}),borderColor:gcolors[i%gcolors.length],backgroundColor:gcolors[i%gcolors.length],tension:0.3,fill:false});
+          gds.push({label:g+'加分',data:m.map(function(x){return data.filter(function(d){return d.g===g&&d.m===x&&d.sc>0}).length}),borderColor:gcolors[i%gcolors.length],backgroundColor:gcolors[i%gcolors.length],tension:0.3,fill:false,borderDash:[5,5]});
+        });
+        safeChart('chartGroupTrend', { type:'line', data:{labels:m.map(fmtMonth),datasets:gds}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{position:'top',labels:{font:{size:9}}}}}});
+        
+        // ET rank
+        var etr = Object.keys(etStats).sort(function(a,b){return etStats[b]-etStats[a]}).slice(0,10).reverse();
+        if(etr.length) safeChart('chartEtRank', { type:'bar', data:{labels:etr,datasets:[{label:'差错次数',data:etr.map(function(k){return etStats[k]}),backgroundColor:'#e67e22',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'次数'}}},plugins:{legend:{display:false}}}});
+        
+        // ET trend2
+        var etMonthly = STORE.ET_MONTHLY;
+        safeChart('chartEtTrend2', { type:'line', data:{labels:m.map(fmtMonth),datasets:top5.map(function(et,i){return{label:et,data:m.map(function(x){return etMonthly[et]?(etMonthly[et][x]||0):0}),borderColor:COLORS[i],backgroundColor:COLORS[i],tension:0.3,fill:false}})}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'次数'}}},plugins:{legend:{position:'top',labels:{font:{size:10}}}}}});
+        
+        // Bmy
+        var bmyStats = STORE.BMY_STATS;
+        var bkeys = Object.keys(bmyStats);
+        if(bkeys.length===0) {
+          document.querySelector('#chartBmyCat').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px;">暂无不满意专项数据</p>';
+        } else {
+          safeChart('chartBmyCat', { type:'pie', data:{labels:bkeys,datasets:[{data:bkeys.map(function(c){return bmyStats[c]}),backgroundColor:COLORS.slice(0,bkeys.length)}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'}}}});
+        }
+        
+        // Employee tags
+        var allEmps = empEntries.slice().sort(function(a,b){return b.deduct-a.deduct});
+        document.getElementById('empTags').innerHTML = allEmps.map(function(d){
+          return '<span class="rank-item '+(d.deduct>=d.bonus?'deduct':'bonus')+'" onclick="showProfile(\''+d.name+'\')">'+d.name+' (扣'+d.deduct+'/加'+d.bonus+')</span>';
+        }).join('');
+        
+        log('All charts created successfully');
         
       } catch(e) {
         err('renderAll error: ' + e.message + '\\\\n' + e.stack);
       }
+    }
+    
+    var selectedEmp = null;
+    function showProfile(emp) {
+      selectedEmp = emp;
+      document.getElementById('profilePanel').style.display='block';
+      document.querySelectorAll('#empTags .rank-item').forEach(function(el){el.style.border='';});
+      var found = null;
+      document.querySelectorAll('#empTags .rank-item').forEach(function(el){
+        if(el.textContent.includes(emp)) found = el;
+      });
+      if(found) found.style.border='2px solid #667eea';
+      
+      var ae = DIMS.ets;
+      var ed = STORE.EMP_ET_DIST[emp]||{};
+      var ev = ae.map(function(et){return ed[et]||0});
+      var allDists = Object.values(STORE.EMP_ET_DIST);
+      var avgArr = ae.map(function(et){
+        return Math.round(allDists.reduce(function(s,d){return s+(d[et]||0);},0)/allDists.length*10)/10||0;
+      });
+      safeChart('chartProfileRadar', { type:'radar', data:{labels:ae,datasets:[
+        {label:emp,data:ev,borderColor:'#667eea',backgroundColor:'rgba(102,126,234,0.1)'},
+        {label:'团队均值',data:avgArr,borderColor:'#e74c3c',backgroundColor:'rgba(231,76,60,0.1)',borderDash:[5,5]}
+      ]}, options:{responsive:true,maintainAspectRatio:false,scales:{r:{beginAtZero:true,ticks:{stepSize:1}}},plugins:{legend:{position:'top'}}}});
+      
+      var md = STORE.EMP_MONTHLY[emp]||{};
+      safeChart('chartProfileMonthly', { type:'bar', data:{labels:m.map(fmtMonth),datasets:[
+        {label:'扣分',data:m.map(function(x){return (md[x]||{}).deduct||0}),backgroundColor:'#e74c3c'},
+        {label:'加分',data:m.map(function(x){return (md[x]||{}).bonus||0}),backgroundColor:'#27ae60'}
+      ]}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'条数'}}},plugins:{legend:{position:'top'}}}});
     }
     
     function onFilterChange() { renderAll(); }
