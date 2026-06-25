@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json, os
+import json, os, re
 
 SCRIPT_DIR = 'C:/Users/86135/WorkBuddy/2026-06-23-14-49-40'
 JSON_PATH = os.path.join(SCRIPT_DIR, 'chart_data.json')
@@ -313,3 +313,18 @@ renderAll();
 </html>''')
 
 print(f'Dashboard generated: {HTML_PATH}')
+
+# Post-process: fix literal \uXXXX sequences in the HTML that came from r''' raw strings
+with open(HTML_PATH, 'r', encoding='utf-8') as f:
+    html_content = f.read()
+
+def replace_unicode_escape(m):
+    # Convert literal \uXXXX to actual unicode character
+    return chr(int(m.group(1), 16))
+
+html_content = re.sub(r'\\u([0-9a-fA-F]{4})', replace_unicode_escape, html_content)
+
+with open(HTML_PATH, 'w', encoding='utf-8') as f:
+    f.write(html_content)
+
+print(f'Fixed unicode escapes in: {HTML_PATH}')
