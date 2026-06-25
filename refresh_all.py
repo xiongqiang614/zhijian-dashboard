@@ -6,8 +6,8 @@ import subprocess, sys, os, shutil
 
 BASE_DIR = r'C:\Users\86135\WorkBuddy\2026-06-23-14-49-40'
 PYTHON = r'C:\Users\86135\.workbuddy\binaries\python\versions\3.13.12\python.exe'
-XLSX_PATH = r'C:\Users\86135\Desktop\客服质检数据自动分析模板.xlsx'
-HTML_OUT = os.path.join(BASE_DIR, '质检可视化数据看板.html')
+XLSX_PATH = r'C:\Users\86135\Desktop\质量抽检表 (4).xlsx'
+HTML_OUT = os.path.join(BASE_DIR, 'index.html')
 INDEX_OUT = os.path.join(BASE_DIR, 'index.html')
 
 def run_step(script):
@@ -35,12 +35,7 @@ if not run_step('generate_report.py'):
 if not run_step('generate_dashboard.py'):
     sys.exit(1)
 
-# Step 3: 复制为 index.html
-print('[复制] 质检可视化数据看板.html --to-> index.html')
-shutil.copy2(HTML_OUT, INDEX_OUT)
-print('  [OK]')
-
-# Step 4: 推送到 GitHub Pages
+# Step 3: 推送到 GitHub Pages
 print('[云端] 推送到 GitHub Pages ...')
 push_result = subprocess.run([PYTHON, os.path.join(BASE_DIR, 'push_to_github.py')], capture_output=True, text=True)
 print(push_result.stdout.strip())
@@ -53,5 +48,5 @@ print('  [完成] 全部刷新 + 部署成功！')
 print('  [本地] ' + HTML_OUT)
 print('  [云端] https://xiongqiang614.github.io/zhijian-dashboard/')
 print()
-print('  再次更新：修改Excel后，重新运行本脚本')
+print('  再次更新：修改 Excel 后，重新运行本脚本')
 print('=' * 60)
