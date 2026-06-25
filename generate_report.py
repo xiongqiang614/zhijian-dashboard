@@ -55,13 +55,17 @@ ci = {str(c.value): i for i, c in enumerate(ws_bmy[1])}
 bmy = []
 for row in ws_bmy.iter_rows(min_row=2, max_row=ws_bmy.max_row, values_only=True):
     emp = ""
-    if "\u5458\u5de5" in ci and row[ci["\u5458\u5de5"]]:
-        emp = str(row[ci["\u5458\u5de5"]]).strip()
+    # \u517c\u5bb9\u4e0d\u540c\u7248\u672cExcel\u7684\u5217\u540d
+    name_key = "\u59d3\u540d" if "\u59d3\u540d" in ci else ("\u5458\u5de5" if "\u5458\u5de5" in ci else None)
+    bmy_cat_key = "\u4e0d\u6ee1\u610f\u5927\u5206\u7c7b" if "\u4e0d\u6ee1\u610f\u5927\u5206\u7c7b" in ci else ("\u4e0d\u6ee1\u610f\u5927\u7c7b" if "\u4e0d\u6ee1\u610f\u5927\u7c7b" in ci else None)
+    emp = ""
+    if name_key is not None and row[ci[name_key]]:
+        emp = str(row[ci[name_key]]).strip()
     if not emp: continue
     bmy.append({
         "date": str(row[ci.get("\u8d28\u68c0\u65f6\u95f4", -1)] or "")[:10] if "\u8d28\u68c0\u65f6\u95f4" in ci else "",
         "emp": emp,
-        "bigcat": str(row[ci.get("\u4e0d\u6ee1\u610f\u5927\u7c7b", -1)] or "").strip() if "\u4e0d\u6ee1\u610f\u5927\u7c7b" in ci else "",
+        "bigcat": str(row[ci.get(bmy_cat_key or "\u4e0d\u6ee1\u610f\u5927\u7c7b", -1)] or "").strip() if bmy_cat_key else "",
     })
 
 # ===== AGGREGATION =====
