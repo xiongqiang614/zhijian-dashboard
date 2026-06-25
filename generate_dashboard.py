@@ -31,7 +31,9 @@ with open(HTML_PATH, 'w', encoding='utf-8') as f:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>\u8d28\u68c0\u5728\u7ebf\u53ef\u89c6\u5316\u770b\u677f</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>window.CHART_LOADED = !!window.Chart;</script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script>window.DATALABELS_LOADED = !!window.ChartDataLabels;</script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:#f5f7fa; color:#333; padding:20px; }
@@ -153,7 +155,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
   </div>
 </div>
 <script>
-Chart.register(ChartDataLabels);
+try { if(window.ChartDataLabels) Chart.register(ChartDataLabels); } catch(e){console.warn('databels:',e);}
 const DIMS = ''' + sections['dims'] + r''';
 const KPI = ''' + sections['kpi'] + r''';
 const EMP_STATS = ''' + sections['emp_stats'] + r''';
@@ -305,8 +307,16 @@ function renderDetail() {
   html += '</tbody></table>';
   document.getElementById('detailTableWrap').innerHTML = html;
 }
-initFilters();
-renderAll();
+function startApp() {
+  try {
+    initFilters();
+    renderAll();
+  } catch(e) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#e74c3c;"><h2>\u52a0\u8f7d\u5931\u8d25</h2><p>'+e.message+'</p><p>\u8bf7\u5237\u65b0\u9875\u9762\u91cd\u8bd5\uff0c\u6216\u68c0\u67e5\u7f51\u7edc\u8fde\u63a5\u3002</p></div>';
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startApp);
+else startApp();
 </script>
 <footer style="text-align:center;margin-top:30px;font-size:12px;color:#aaa;">\u6570\u636e\u66f4\u65b0\u65b9\u5f0f\uff1a\u4fee\u6539Excel\u540e\u53cc\u51fb\u684c\u9762\u300c\u4e00\u952e\u5237\u65b0\u8d28\u68c0\u770b\u677f.bat\u300d</footer>
 </body>
