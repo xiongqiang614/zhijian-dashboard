@@ -1,5 +1,5 @@
-﻿# -*- coding: utf-8 -*-
-import json, os, base64
+# -*- coding: utf-8 -*-
+import json, os
 
 SCRIPT_DIR = 'C:/Users/86135/WorkBuddy/2026-06-23-14-49-40'
 JSON_PATH = os.path.join(SCRIPT_DIR, 'chart_data.json')
@@ -8,18 +8,28 @@ HTML_PATH = os.path.join(SCRIPT_DIR, 'index.html')
 with open(JSON_PATH, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
-# Serialize all data sections as JSON strings for embedding
 sections = {}
-for key in ['meta','dims','kpi','emp_stats','emp_monthly','emp_et_dist','group_stats','group_monthly','et_stats','et_monthly','lv_data','lv_monthly','ct_data','bmy','bmy_stats','raw']:
+for key in ['meta','dims','kpi','emp_stats','emp_monthly','emp_et_dist','group_stats','group_monthly',
+            'et_stats','et_monthly','lv_data','lv_monthly','ct_data','bmy','bmy_stats']:
     sections[key] = json.dumps(data.get(key, {}), ensure_ascii=False)
 
-# Build HTML
-html = r'''<!DOCTYPE html>
+raw_compact = [{'s':d['src'],'e':d['emp'],'g':d['group'],'m':d['month'],'sc':d['score'],
+                'et':d['et'],'lv':d['lv'],'ct':d['ct'],'ch':d['checker'],'dt':d['date']} for d in data.get('raw',[])]
+raw_json = json.dumps(raw_compact, ensure_ascii=False)
+
+cur_month = data.get('dims',{}).get('cur_month','')
+total = data['meta']['total']
+kf_cnt = data['meta']['kf']
+ks_cnt = data['meta']['ks']
+gen_time = data['meta']['gen_time']
+
+with open(HTML_PATH, 'w', encoding='utf-8') as f:
+    f.write('''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>质检在线可视化看板</title>
+<title>\u8d28\u68c0\u5728\u7ebf\u53ef\u89c6\u5316\u770b\u677f</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
@@ -44,7 +54,6 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
 .chart-container.tall { height:380px; }
 .chart-container.short { height:250px; }
 .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
 .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px; }
 .kpi-card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.05); text-align:center; }
 .kpi-card .kpi-label { font-size:12px; color:#888; margin-bottom:3px; }
@@ -53,67 +62,62 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
 .kpi-card .kpi-value.bonus { color:#27ae60; }
 .kpi-card .kpi-value.blue { color:#3498db; }
 .kpi-card .kpi-value.orange { color:#e67e22; }
-.rank-list { display:flex; flex-wrap:wrap; gap:6px; }
-.rank-item { display:inline-flex; align-items:center; gap:4px; padding:4px 12px; border-radius:20px; font-size:13px; cursor:pointer; transition:all 0.2s; }
+.rank-item { display:inline-flex; align-items:center; gap:4px; padding:4px 12px; border-radius:20px; font-size:13px; cursor:pointer; transition:all 0.2s; margin:2px; }
 .rank-item:hover { transform:scale(1.05); }
 .rank-item.deduct { background:#ffe0e0; color:#c0392b; }
 .rank-item.bonus { background:#e0ffe0; color:#27ae60; }
 .profile-panel { display:none; background:#f8f9fa; border-radius:12px; padding:16px; margin-top:12px; border:1px solid #e0e0e0; }
-@media (max-width:900px) { .grid2,.grid3,.kpi-row { grid-template-columns:1fr; } }
+.table-wrap { overflow-x:auto; max-height:450px; overflow-y:auto; }
+.table-wrap table { width:100%; border-collapse:collapse; font-size:12px; }
+.table-wrap th { background:#667eea; color:#fff; padding:6px 8px; position:sticky; top:0; white-space:nowrap; }
+.table-wrap td { padding:5px 8px; border-bottom:1px solid #eee; }
+.table-wrap tr:hover { background:#f0f0ff; }
+@media (max-width:900px) { .grid2,.kpi-row { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
-
 <div class="header">
-  <h1>质检在线可视化看板</h1>
-  <div class="info">数据源: 质量抽检表 (4).xlsx &nbsp;|&nbsp; 共 ''' + str(data['meta']['total']) + r''' 条记录 &nbsp;|&nbsp; 更新: ''' + data['meta']['gen_time'] + r'''</div>
+  <h1>\u8d28\u68c0\u5728\u7ebf\u53ef\u89c6\u5316\u770b\u677f</h1>
+  <div class="info">\u6570\u636e\u6e90: \u8d28\u91cf\u62bd\u68c0\u8868 (4).xlsx | \u5171 ''' + str(total) + r''' \u6761\u8bb0\u5f55 | \u5ba2\u670d ''' + str(kf_cnt) + r''' \u6761 / \u5ba2\u8bc9 ''' + str(ks_cnt) + r''' \u6761 | \u66f4\u65b0: ''' + gen_time + r'''</div>
 </div>
-
-<!-- Global Filters -->
 <div class="filter-bar">
-  <label>数据类型:</label>
-  <select id="filterSrc"><option value="all">全部</option><option value="kf">客服质检</option><option value="ks">客诉质检</option></select>
-  <label>月份:</label>
-  <select id="filterMonth" style="min-width:100px;"></select>
-  <label>小组:</label>
-  <select id="filterGroup"><option value="all">全部小组</option></select>
-  <label>员工:</label>
-  <select id="filterEmp"><option value="all">全部员工</option></select>
-  <label>抽检人:</label>
-  <select id="filterChecker"><option value="all">全部抽检人</option></select>
-  <button onclick="applyFilters()" style="padding:5px 16px;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;">应用筛选</button>
-  <button onclick="resetFilters()" style="padding:5px 12px;background:#eee;color:#666;border:none;border-radius:6px;cursor:pointer;">重置</button>
+  <label>\u6570\u636e\u7c7b\u578b:</label>
+  <select id="filterSrc" onchange="onFilterChange()"><option value="all">\u5168\u90e8</option><option value="kf">\u5ba2\u670d\u8d28\u68c0</option><option value="ks">\u5ba2\u8bc9\u8d28\u68c0</option></select>
+  <label>\u6708\u4efd:</label>
+  <select id="filterMonth" onchange="onFilterChange()"></select>
+  <label>\u5c0f\u7ec4:</label>
+  <select id="filterGroup" onchange="onFilterChange()"><option value="all">\u5168\u90e8\u5c0f\u7ec4</option></select>
+  <label>\u5458\u5de5:</label>
+  <select id="filterEmp" onchange="onFilterChange()"><option value="all">\u5168\u90e8\u5458\u5de5</option></select>
+  <label>\u62bd\u68c0\u4eba:</label>
+  <select id="filterChecker" onchange="onFilterChange()"><option value="all">\u5168\u90e8\u62bd\u68c0\u4eba</option></select>
+  <button onclick="resetFilters()" style="padding:5px 12px;background:#eee;color:#666;border:none;border-radius:6px;cursor:pointer;">\u91cd\u7f6e</button>
 </div>
-
-<!-- Tabs -->
 <div class="tabs">
-  <div class="tab-btn active" onclick="switchTab(this,'tab1')">综合概览</div>
-  <div class="tab-btn" onclick="switchTab(this,'tab2')">员工分析</div>
-  <div class="tab-btn" onclick="switchTab(this,'tab3')">小组对比</div>
-  <div class="tab-btn" onclick="switchTab(this,'tab4')">差错分析</div>
-  <div class="tab-btn" onclick="switchTab(this,'tab5')">不满意专项</div>
+  <div class="tab-btn active" onclick="switchTab(this,'tab1')">\u7efc\u5408\u6982\u89c8</div>
+  <div class="tab-btn" onclick="switchTab(this,'tab2')">\u5458\u5de5\u5206\u6790</div>
+  <div class="tab-btn" onclick="switchTab(this,'tab3')">\u5c0f\u7ec4\u5bf9\u6bd4</div>
+  <div class="tab-btn" onclick="switchTab(this,'tab4')">\u5dee\u9519\u5206\u6790</div>
+  <div class="tab-btn" onclick="switchTab(this,'tab5')">\u4e0d\u6ee1\u610f\u4e13\u9879</div>
+  <div class="tab-btn" onclick="switchTab(this,'tab6')">\u8d28\u68c0\u660e\u7ec6</div>
 </div>
-
-<!-- Tab 1: 综合概览 -->
 <div id="tab1" class="tab-content active">
   <div class="kpi-row" id="kpiRow"></div>
   <div class="grid2">
-    <div class="card"><h3>月度趋势</h3><div class="chart-container"><canvas id="chartTrend"></canvas></div></div>
-    <div class="card"><h3>差错类型趋势</h3><div class="chart-container"><canvas id="chartEtTrend"></canvas></div></div>
-    <div class="card"><h3>感知等级分布</h3><div class="chart-container short"><canvas id="chartLevel"></canvas></div></div>
-    <div class="card"><h3>通话类别分布</h3><div class="chart-container short"><canvas id="chartCallType"></canvas></div></div>
+    <div class="card"><h3>\u6708\u5ea6\u8d8b\u52bf</h3><div class="chart-container"><canvas id="chartTrend"></canvas></div></div>
+    <div class="card"><h3>\u5dee\u9519\u7c7b\u578b\u8d8b\u52bf</h3><div class="chart-container"><canvas id="chartEtTrend"></canvas></div></div>
+    <div class="card"><h3>\u611f\u77e5\u7b49\u7ea7\u5206\u5e03</h3><div class="chart-container short"><canvas id="chartLevel"></canvas></div></div>
+    <div class="card"><h3>\u901a\u8bdd\u7c7b\u522b\u5206\u5e03</h3><div class="chart-container short"><canvas id="chartCallType"></canvas></div></div>
   </div>
 </div>
-
-<!-- Tab 2: 员工分析 -->
 <div id="tab2" class="tab-content">
   <div class="grid2">
-    <div class="card"><h3>扣分排名 TOP10</h3><div class="chart-container tall"><canvas id="chartDeductRank"></canvas></div></div>
-    <div class="card"><h3>加分排名 TOP10</h3><div class="chart-container tall"><canvas id="chartBonusRank"></canvas></div></div>
+    <div class="card"><h3>\u6263\u5206\u6392\u540d TOP10</h3><div class="chart-container tall"><canvas id="chartDeductRank"></canvas></div></div>
+    <div class="card"><h3>\u52a0\u5206\u6392\u540d TOP10</h3><div class="chart-container tall"><canvas id="chartBonusRank"></canvas></div></div>
   </div>
-  <div class="card"><h3>四象限矩阵 <small>扣分次数 × 加分次数</small></h3><div class="chart-container tall"><canvas id="chartQuadrant"></canvas></div></div>
+  <div class="card"><h3>\u56db\u8c61\u9650\u77e9\u9635 <small>\u6263\u5206\u6b21\u6570 x \u52a0\u5206\u6b21\u6570</small></h3><div class="chart-container tall"><canvas id="chartQuadrant"></canvas></div></div>
   <div class="card">
-    <h3>个人画像 <small>点击下方员工标签查看详情</small></h3>
+    <h3>\u4e2a\u4eba\u753b\u50cf <small>\u70b9\u51fb\u5458\u5de5\u6807\u7b7e\u67e5\u770b\u8be6\u60c5</small></h3>
     <div id="empTags" style="margin-bottom:12px;"></div>
     <div id="profilePanel" class="profile-panel">
       <div class="grid2">
@@ -123,41 +127,38 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
     </div>
   </div>
 </div>
-
-<!-- Tab 3: 小组对比 -->
 <div id="tab3" class="tab-content">
   <div class="grid2">
-    <div class="card"><h3>小组扣分/加分对比</h3><div class="chart-container"><canvas id="chartGroupCompare"></canvas></div></div>
-    <div class="card"><h3>小组月度趋势</h3><div class="chart-container"><canvas id="chartGroupTrend"></canvas></div></div>
+    <div class="card"><h3>\u5c0f\u7ec4\u6263\u5206/\u52a0\u5206\u5bf9\u6bd4</h3><div class="chart-container"><canvas id="chartGroupCompare"></canvas></div></div>
+    <div class="card"><h3>\u5c0f\u7ec4\u6708\u5ea6\u8d8b\u52bf</h3><div class="chart-container"><canvas id="chartGroupTrend"></canvas></div></div>
   </div>
 </div>
-
-<!-- Tab 4: 差错分析 -->
 <div id="tab4" class="tab-content">
   <div class="grid2">
-    <div class="card"><h3>差错类型排名 TOP10</h3><div class="chart-container tall"><canvas id="chartEtRank"></canvas></div></div>
-    <div class="card"><h3>差错月度趋势 (Top5)</h3><div class="chart-container tall"><canvas id="chartEtTrend2"></canvas></div></div>
+    <div class="card"><h3>\u5dee\u9519\u7c7b\u578b\u6392\u540d TOP10</h3><div class="chart-container tall"><canvas id="chartEtRank"></canvas></div></div>
+    <div class="card"><h3>\u5dee\u9519\u6708\u5ea6\u8d8b\u52bf (Top5)</h3><div class="chart-container tall"><canvas id="chartEtTrend2"></canvas></div></div>
   </div>
 </div>
-
-<!-- Tab 5: 不满意专项 -->
 <div id="tab5" class="tab-content">
   <div class="grid2">
-    <div class="card"><h3>不满意原因分布</h3><div class="chart-container"><canvas id="chartBmyCat"></canvas></div></div>
-    <div class="card"><h3>不满意月度趋势</h3><div class="chart-container"><canvas id="chartBmyTrend"></canvas></div></div>
+    <div class="card"><h3>\u4e0d\u6ee1\u610f\u539f\u56e0\u5206\u5e03</h3><div class="chart-container"><canvas id="chartBmyCat"></canvas></div></div>
+    <div class="card"><h3>\u4e0d\u6ee1\u610f\u6708\u5ea6\u8d8b\u52bf</h3><div class="chart-container"><canvas id="chartBmyTrend"></canvas></div></div>
   </div>
 </div>
-
+<div id="tab6" class="tab-content">
+  <div class="card">
+    <h3>\u8d28\u68c0\u660e\u7ec6\u6570\u636e</h3>
+    <div style="margin-bottom:10px;" id="detailCount"></div>
+    <div class="table-wrap" id="detailTableWrap"></div>
+  </div>
+</div>
 <script>
 Chart.register(ChartDataLabels);
-
-// ===== DATA =====
-const META = ''' + sections['meta'] + r''';
 const DIMS = ''' + sections['dims'] + r''';
 const KPI = ''' + sections['kpi'] + r''';
 const EMP_STATS = ''' + sections['emp_stats'] + r''';
-const EMP_MONTHLY = ''' + sections['emp_monthly'] + r''';
 const EMP_ET_DIST = ''' + sections['emp_et_dist'] + r''';
+const EMP_MONTHLY = ''' + sections['emp_monthly'] + r''';
 const GROUP_STATS = ''' + sections['group_stats'] + r''';
 const GROUP_MONTHLY = ''' + sections['group_monthly'] + r''';
 const ET_STATS = ''' + sections['et_stats'] + r''';
@@ -165,537 +166,150 @@ const ET_MONTHLY = ''' + sections['et_monthly'] + r''';
 const LV_DATA = ''' + sections['lv_data'] + r''';
 const CT_DATA = ''' + sections['ct_data'] + r''';
 const BMY = ''' + sections['bmy'] + r''';
-const RAW = ''' + sections['raw'] + r''';
-
-// ===== FILTER STATE =====
-let filteredData = null;
-let selectedEmp = null;
-const CHART_COLORS = ['#CC0000','#FF6600','#0033CC','#9900CC','#009999','#33AA00','#CC6600','#006699','#993366','#669900','#CC0066','#336699','#993300','#339933'];
-
-// ===== HELPERS =====
-function fmtMonth(m) { return m.replace('/','年')+'月'; }
-
-function getFilteredData() {
+const BMY_STATS = ''' + sections['bmy_stats'] + r''';
+const RAW = ''' + raw_json + r''';
+const COLORS = ['#CC0000','#FF6600','#0033CC','#9900CC','#009999','#33AA00','#CC6600','#006699','#993366','#669900','#CC0066'];
+const CUR_MONTH = "''' + cur_month + r'''";
+const SRC_LABEL = {"kf":"\u5ba2\u670d\u8d28\u68c0","ks":"\u5ba2\u8bc9\u8d28\u68c0"};
+let inst = {};
+let chartNames = ['Trend','EtTrend','Level','CallType','DeductRank','BonusRank','Quadrant','GroupCompare','GroupTrend','EtRank','EtTrend2','BmyCat','ProfileRadar','ProfileMonthly'];
+function fmtMonth(m) { return m.replace('/','\u5e74')+'\u6708'; }
+function getFiltered() {
   const src = document.getElementById('filterSrc').value;
   const month = document.getElementById('filterMonth').value;
   const group = document.getElementById('filterGroup').value;
   const emp = document.getElementById('filterEmp').value;
   const checker = document.getElementById('filterChecker').value;
-  
   let data = RAW;
-  if (src !== 'all') data = data.filter(d => d.src === src);
-  if (month !== 'all') data = data.filter(d => d.month === month);
-  if (group !== 'all') data = data.filter(d => d.group === group);
-  if (emp !== 'all') data = data.filter(d => d.emp === emp);
-  if (checker !== 'all') data = data.filter(d => d.checker === checker);
+  if (src !== 'all') data = data.filter(d => d.s === src);
+  if (month !== 'all') data = data.filter(d => d.m === month);
+  if (group !== 'all') data = data.filter(d => d.g === group);
+  if (emp !== 'all') data = data.filter(d => d.e === emp);
+  if (checker !== 'all') data = data.filter(d => d.ch === checker);
   return data;
 }
-
 function initFilters() {
-  const selMonth = document.getElementById('filterMonth');
-  DIMS.months.forEach(m => selMonth.add(new Option(fmtMonth(m), m)));
-  selMonth.value = 'all';
-  
-  const selGroup = document.getElementById('filterGroup');
-  DIMS.groups.forEach(g => selGroup.add(new Option(g, g)));
-  
-  const selEmp = document.getElementById('filterEmp');
-  DIMS.emps.forEach(e => selEmp.add(new Option(e, e)));
-  
-  const selChecker = document.getElementById('filterChecker');
-  DIMS.checkers.forEach(c => selChecker.add(new Option(c, c)));
+  const sm = document.getElementById('filterMonth');
+  DIMS.months.forEach(m => sm.add(new Option(fmtMonth(m), m)));
+  sm.value = CUR_MONTH;
+  const sg = document.getElementById('filterGroup');
+  DIMS.groups.forEach(g => sg.add(new Option(g, g)));
+  const se = document.getElementById('filterEmp');
+  DIMS.emps.forEach(e => se.add(new Option(e, e)));
+  const sc = document.getElementById('filterChecker');
+  DIMS.checkers.forEach(c => sc.add(new Option(c, c)));
 }
-
-function applyFilters() {
-  filteredData = getFilteredData();
-  renderAll();
-}
-
+function onFilterChange() { renderAll(); }
 function resetFilters() {
   document.getElementById('filterSrc').value = 'all';
-  document.getElementById('filterMonth').value = 'all';
+  document.getElementById('filterMonth').value = CUR_MONTH;
   document.getElementById('filterGroup').value = 'all';
   document.getElementById('filterEmp').value = 'all';
   document.getElementById('filterChecker').value = 'all';
-  applyFilters();
+  renderAll();
 }
-
 function switchTab(el, id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   document.getElementById(id).classList.add('active');
-  // Re-render charts in this tab (small delay for layout)
-  setTimeout(() => { renderAll(); }, 100);
+  if (id === 'tab6') renderDetail();
+  else setTimeout(renderAll, 100);
 }
-
-function showProfile(empName) {
-  selectedEmp = empName;
-  const panel = document.getElementById('profilePanel');
-  panel.style.display = 'block';
-  document.getElementById('empTags').querySelectorAll('.rank-item').forEach(el => {
-    el.style.border = el.textContent.includes(empName) ? '2px solid #667eea' : 'none';
-  });
-  renderProfileChart(empName);
-}
-
-// ===== RENDER ALL =====
+function destroyAll() { chartNames.forEach(c => { if(inst[c]) { inst[c].destroy(); inst[c]=null; } }); }
 function renderAll() {
-  const data = filteredData || RAW;
-  renderKPI(data);
-  renderTrend(data);
-  renderEtTrend(data);
-  renderLevel(data);
-  renderCallType(data);
-  renderDeductRank();
-  renderBonusRank();
-  renderQuadrant();
-  renderEmpTags();
-  renderGroupCompare(data);
-  renderGroupTrend(data);
-  renderEtRank();
-  renderEtTrend2();
-  renderBmy();
-}
-
-// ===== KPI =====
-function renderKPI(data) {
-  const total = data.length;
-  const deduct = data.filter(d => d.score < 0).length;
-  const bonus = data.filter(d => d.score > 0).length;
-  const errors = data.filter(d => d.et !== '').length;
-  document.getElementById('kpiRow').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">抽检总数</div><div class="kpi-value blue">${total}</div></div>
-    <div class="kpi-card"><div class="kpi-label">扣分条数</div><div class="kpi-value deduct">${deduct}</div></div>
-    <div class="kpi-card"><div class="kpi-label">加分条数</div><div class="kpi-value bonus">${bonus}</div></div>
-    <div class="kpi-card"><div class="kpi-label">差错总数</div><div class="kpi-value orange">${errors}</div></div>
-  `;
-}
-
-// ===== TREND =====
-function renderTrend(data) {
-  const ctx = document.getElementById('chartTrend').getContext('2d');
-  if (window._chTrend) window._chTrend.destroy();
-  const months = DIMS.months;
-  const deductData = months.map(m => data.filter(d => d.month===m && d.score<0).length);
-  const bonusData = months.map(m => data.filter(d => d.month===m && d.score>0).length);
-  window._chTrend = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: months.map(fmtMonth),
-      datasets: [
-        { label: '扣分', data: deductData, backgroundColor: '#e74c3c', borderRadius: 4 },
-        { label: '加分', data: bonusData, backgroundColor: '#27ae60', borderRadius: 4 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { position: 'top' }, datalabels: { display: false } }
-    }
-  });
-}
-
-// ===== ERROR TYPE TREND =====
-function renderEtTrend(data) {
-  const ctx = document.getElementById('chartEtTrend').getContext('2d');
-  if (window._chEtTrend) window._chEtTrend.destroy();
-  const months = DIMS.months;
-  const top5 = Object.entries(ET_STATS).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const datasets = top5.map(([et], i) => ({
-    label: et,
-    data: months.map(m => data.filter(d => d.et===et && d.month===m).length),
-    borderColor: CHART_COLORS[i % CHART_COLORS.length],
-    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-    tension: 0.3, fill: false
-  }));
-  window._chEtTrend = new Chart(ctx, {
-    type: 'line',
-    data: { labels: months.map(fmtMonth), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '次数' } } },
-      plugins: { legend: { position: 'top', labels: { font: { size: 10 } } }, datalabels: { display: false } }
-    }
-  });
-}
-
-// ===== LEVEL DISTRIBUTION =====
-function renderLevel(data) {
-  const ctx = document.getElementById('chartLevel').getContext('2d');
-  if (window._chLevel) window._chLevel.destroy();
-  const levels = DIMS.levels;
-  const values = levels.map(l => data.filter(d => d.lv === l).length);
-  window._chLevel = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: levels,
-      datasets: [{ data: values, backgroundColor: ['#27ae60','#f39c12','#e74c3c','#95a5a6'] }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right' }, datalabels: { color: '#fff', font: { weight: 'bold' }, formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== CALL TYPE =====
-function renderCallType(data) {
-  const ctx = document.getElementById('chartCallType').getContext('2d');
-  if (window._chCt) window._chCt.destroy();
-  const ctKeys = Object.keys(CT_DATA);
-  const values = ctKeys.map(k => data.filter(d => d.ct === k).length);
-  window._chCt = new Chart(ctx, {
-    type: 'pie',
-    data: { labels: ctKeys, datasets: [{ data: values, backgroundColor: CHART_COLORS.slice(0, ctKeys.length) }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { font: { size: 10 } } }, datalabels: { color: '#fff', formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== DEDUCT RANK =====
-function renderDeductRank() {
-  const ctx = document.getElementById('chartDeductRank').getContext('2d');
-  if (window._chDeductRank) window._chDeductRank.destroy();
-  const top10 = Object.entries(EMP_STATS).map(([k,v]) => ({n:k,...v})).sort((a,b) => b.deduct-a.deduct).slice(0,10).reverse();
-  window._chDeductRank = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top10.map(d => d.n),
-      datasets: [{ label: '扣分条数', data: top10.map(d => d.deduct), backgroundColor: '#e74c3c', borderRadius: 4 }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      scales: { x: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#e74c3c', font: { weight: 'bold' }, formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== BONUS RANK =====
-function renderBonusRank() {
-  const ctx = document.getElementById('chartBonusRank').getContext('2d');
-  if (window._chBonusRank) window._chBonusRank.destroy();
-  const top10 = Object.entries(EMP_STATS).map(([k,v]) => ({n:k,...v})).sort((a,b) => b.bonus-a.bonus).slice(0,10).reverse();
-  window._chBonusRank = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top10.map(d => d.n),
-      datasets: [{ label: '加分条数', data: top10.map(d => d.bonus), backgroundColor: '#27ae60', borderRadius: 4 }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      scales: { x: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#27ae60', font: { weight: 'bold' }, formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== QUADRANT =====
-function renderQuadrant() {
-  const ctx = document.getElementById('chartQuadrant').getContext('2d');
-  if (window._chQuad) window._chQuad.destroy();
-  const emps = Object.entries(EMP_STATS);
-  const labels = emps.map(([k]) => k);
-  const deductData = emps.map(([,v]) => v.deduct);
-  const bonusData = emps.map(([,v]) => v.bonus);
-  const colors = emps.map(([,v]) => {
-    if (v.deduct >= 3 && v.bonus >= 2) return '#e74c3c';
-    if (v.deduct < 3 && v.bonus >= 2) return '#27ae60';
-    if (v.deduct >= 3 && v.bonus < 2) return '#e67e22';
-    return '#95a5a6';
-  });
-  window._chQuad = new Chart(ctx, {
-    type: 'scatter',
-    data: {
-      datasets: [{
-        label: '员工',
-        data: emps.map(([k,v]) => ({x: v.deduct, y: v.bonus})),
-        backgroundColor: colors,
-        pointRadius: 8,
-        pointHoverRadius: 12
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        x: { title: { display: true, text: '扣分次数 →' }, beginAtZero: true },
-        y: { title: { display: true, text: '加分次数 ↑' }, beginAtZero: true }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: function(ctx) {
-              const i = ctx.dataIndex;
-              return labels[i] + ': 扣分' + deductData[i] + '条, 加分' + bonusData[i] + '条';
-            }
-          }
-        },
-        datalabels: {
-          display: function(ctx) {
-            // Use custom plugin to label
-            return true;
-          },
-          formatter: function(v, ctx) {
-            return labels[ctx.dataIndex];
-          },
-          anchor: 'end',
-          align: 'end',
-          offset: 2,
-          font: { size: 10 }
-        }
-      }
-    },
-    plugins: [{
-      id: 'quadrantLines',
-      beforeDraw: function(chart) {
-        const ctx2 = chart.ctx;
-        const xAxis = chart.scales.x;
-        const yAxis = chart.scales.y;
-        const xMid = xAxis.getPixelForValue(2);
-        const yMid = yAxis.getPixelForValue(2);
-        
-        ctx2.save();
-        ctx2.setLineDash([5,5]);
-        ctx2.strokeStyle = '#aaa';
-        ctx2.lineWidth = 1;
-        
-        // Vertical line (x=2)
-        ctx2.beginPath();
-        ctx2.moveTo(xMid, yAxis.top);
-        ctx2.lineTo(xMid, yAxis.bottom);
-        ctx2.stroke();
-        
-        // Horizontal line (y=2)
-        ctx2.beginPath();
-        ctx2.moveTo(xAxis.left, yMid);
-        ctx2.lineTo(xAxis.right, yMid);
-        ctx2.stroke();
-        
-        ctx2.restore();
-        
-        // Labels for quadrants
-        ctx2.font = '11px sans-serif';
-        ctx2.fillStyle = '#999';
-        ctx2.textAlign = 'center';
-        ctx2.fillText('低扣分高加分', xAxis.left + 50, yMid - 10);
-        ctx2.fillText('高扣分高加分', xAxis.right - 50, yMid - 10);
-        ctx2.fillText('低扣分低加分', xAxis.left + 50, yAxis.bottom - 15);
-        ctx2.fillText('高扣分低加分', xAxis.right - 50, yAxis.bottom - 15);
-      }
-    }]
-  });
-}
-
-// ===== EMPLOYEE TAGS =====
-function renderEmpTags() {
-  const container = document.getElementById('empTags');
-  const emps = Object.entries(EMP_STATS).sort((a,b) => b[1].deduct - a[1].deduct);
-  container.innerHTML = emps.map(([k,v]) =>
-    '<span class="rank-item ' + (v.deduct >= v.bonus ? 'deduct' : 'bonus') + '" onclick="showProfile(\'' + k + '\')">'
-    + k + ' (扣' + v.deduct + '/加' + v.bonus + ')</span>'
-  ).join('');
-}
-
-// ===== PROFILE =====
-function renderProfileChart(emp) {
-  const stats = EMP_STATS[emp] || {};
-  const dist = EMP_ET_DIST[emp] || {};
-  const monthly = EMP_MONTHLY[emp] || {};
-  
-  // Radar: error type comparison with team average
-  const allEts = DIMS.ets;
-  const empVals = allEts.map(et => dist[et] || 0);
-  const teamVals = allEts.map(et => {
-    const total = Object.values(EMP_ET_DIST).reduce((s,d) => s + (d[et]||0), 0);
-    const count = Object.keys(EMP_ET_DIST).length || 1;
-    return Math.round(total / count * 10) / 10;
-  });
-  
-  const ctx1 = document.getElementById('chartProfileRadar').getContext('2d');
-  if (window._chProfile1) window._chProfile1.destroy();
-  window._chProfile1 = new Chart(ctx1, {
-    type: 'radar',
-    data: {
-      labels: allEts,
-      datasets: [
-        { label: emp, data: empVals, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', pointBackgroundColor: '#667eea' },
-        { label: '团队均值', data: teamVals, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)', pointBackgroundColor: '#e74c3c', borderDash: [5,5] }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { r: { beginAtZero: true, ticks: { stepSize: 1 } } },
-      plugins: { legend: { position: 'top' }, datalabels: { display: false } }
-    }
-  });
-  
-  // Monthly trend for this employee
-  const months = DIMS.months;
-  const ctx2 = document.getElementById('chartProfileMonthly').getContext('2d');
-  if (window._chProfile2) window._chProfile2.destroy();
-  window._chProfile2 = new Chart(ctx2, {
-    type: 'bar',
-    data: {
-      labels: months.map(fmtMonth),
-      datasets: [
-        { label: '扣分', data: months.map(m => (monthly[m]||{}).deduct||0), backgroundColor: '#e74c3c' },
-        { label: '加分', data: months.map(m => (monthly[m]||{}).bonus||0), backgroundColor: '#27ae60' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { position: 'top' }, datalabels: { display: false } }
-    }
-  });
-}
-
-// ===== GROUP COMPARE =====
-function renderGroupCompare(data) {
-  const ctx = document.getElementById('chartGroupCompare').getContext('2d');
-  if (window._chGroupCmp) window._chGroupCmp.destroy();
-  const groups = DIMS.groups;
-  const colors = ['#2563EB','#DC2626','#F59E0B','#10B981'];
-  window._chGroupCmp = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['扣分', '加分'],
-      datasets: groups.map((g, i) => ({
-        label: g,
-        data: [
-          data.filter(d => d.group===g && d.score<0).length,
-          data.filter(d => d.group===g && d.score>0).length
-        ],
-        backgroundColor: colors[i % colors.length]
-      }))
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { position: 'top' }, datalabels: { color: '#333', font: { weight: 'bold' }, formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== GROUP TREND =====
-function renderGroupTrend(data) {
-  const ctx = document.getElementById('chartGroupTrend').getContext('2d');
-  if (window._chGrpTrend) window._chGrpTrend.destroy();
-  const months = DIMS.months;
-  const groups = DIMS.groups;
-  const colors = ['#2563EB','#DC2626','#F59E0B','#10B981'];
-  const datasets = [];
-  groups.forEach((g, i) => {
-    datasets.push({
-      label: g + '-扣分',
-      data: months.map(m => data.filter(d => d.group===g && d.month===m && d.score<0).length),
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length],
-      tension: 0.3, fill: false, borderDash: []
-    });
-    datasets.push({
-      label: g + '-加分',
-      data: months.map(m => data.filter(d => d.group===g && d.month===m && d.score>0).length),
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length],
-      tension: 0.3, fill: false, borderDash: [5,5]
-    });
-  });
-  window._chGrpTrend = new Chart(ctx, {
-    type: 'line',
-    data: { labels: months.map(fmtMonth), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '条数' } } },
-      plugins: { legend: { position: 'top', labels: { font: { size: 9 } } }, datalabels: { display: false } }
-    }
-  });
-}
-
-// ===== ERROR TYPE RANK =====
-function renderEtRank() {
-  const ctx = document.getElementById('chartEtRank').getContext('2d');
-  if (window._chEtRank) window._chEtRank.destroy();
-  const top10 = Object.entries(ET_STATS).sort((a,b) => b[1]-a[1]).slice(0,10).reverse();
-  window._chEtRank = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top10.map(([k]) => k),
-      datasets: [{ label: '差错次数', data: top10.map(([,v]) => v), backgroundColor: '#e67e22', borderRadius: 4 }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      scales: { x: { beginAtZero: true, title: { display: true, text: '次数' } } },
-      plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#e67e22', font: { weight: 'bold' }, formatter: v => v||'' } }
-    }
-  });
-}
-
-// ===== ERROR TYPE TREND 2 =====
-function renderEtTrend2() {
-  const ctx = document.getElementById('chartEtTrend2').getContext('2d');
-  if (window._chEtTrend2) window._chEtTrend2.destroy();
-  const months = DIMS.months;
-  const top5 = Object.entries(ET_STATS).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const datasets = top5.map(([et], i) => ({
-    label: et,
-    data: months.map(m => ET_MONTHLY[et] ? (ET_MONTHLY[et][m]||0) : 0),
-    borderColor: CHART_COLORS[i % CHART_COLORS.length],
-    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-    tension: 0.3, fill: false
-  }));
-  window._chEtTrend2 = new Chart(ctx, {
-    type: 'line',
-    data: { labels: months.map(fmtMonth), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: '次数' } } },
-      plugins: { legend: { position: 'top', labels: { font: { size: 10 } } }, datalabels: { display: false } }
-    }
-  });
-}
-
-// ===== BMY =====
-function renderBmy() {
-  // Bmy stats
-  const ctx = document.getElementById('chartBmyCat').getContext('2d');
-  if (window._chBmy) window._chBmy.destroy();
-  const bmyStats = ''' + sections['bmy_stats'] + r''';
-  const cats = Object.keys(bmyStats);
-  const vals = Object.values(bmyStats);
-  if (cats.length === 0) {
-    document.querySelector('#chartBmyCat').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px;">暂无不满意专项数据</p>';
+  const data = getFiltered();
+  document.getElementById('kpiRow').innerHTML = [
+    '<div class="kpi-card"><div class="kpi-label">\u62bd\u68c0\u603b\u6570</div><div class="kpi-value blue">'+data.length+'</div></div>',
+    '<div class="kpi-card"><div class="kpi-label">\u6263\u5206\u6761\u6570</div><div class="kpi-value deduct">'+data.filter(d=>d.sc<0).length+'</div></div>',
+    '<div class="kpi-card"><div class="kpi-label">\u52a0\u5206\u6761\u6570</div><div class="kpi-value bonus">'+data.filter(d=>d.sc>0).length+'</div></div>',
+    '<div class="kpi-card"><div class="kpi-label">\u5dee\u9519\u603b\u6570</div><div class="kpi-value orange">'+data.filter(d=>d.et).length+'</div></div>'
+  ].join('');
+  // Trend chart
+  if(inst.Trend) inst.Trend.destroy();
+  const m = DIMS.months;
+  inst.Trend = new Chart(document.getElementById('chartTrend'), { type:'bar', data:{ labels:m.map(fmtMonth), datasets:[
+    {label:'\u6263\u5206',data:m.map(x=>data.filter(d=>d.m===x&&d.sc<0).length),backgroundColor:'#e74c3c',borderRadius:4},
+    {label:'\u52a0\u5206',data:m.map(x=>data.filter(d=>d.m===x&&d.sc>0).length),backgroundColor:'#27ae60',borderRadius:4}
+  ]}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{position:'top'},datalabels:{display:false}}} });
+  // Error type trend
+  if(inst.EtTrend) inst.EtTrend.destroy();
+  const top5 = Object.entries(ET_STATS).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  inst.EtTrend = new Chart(document.getElementById('chartEtTrend'), { type:'line', data:{ labels:m.map(fmtMonth), datasets:top5.map(([et],i)=>({label:et,data:m.map(x=>data.filter(d=>d.et===et&&d.m===x).length),borderColor:COLORS[i],backgroundColor:COLORS[i],tension:0.3,fill:false})) }, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6b21\u6570'}}},plugins:{legend:{position:'top',labels:{font:{size:10}}},datalabels:{display:false}}} });
+  // Level
+  if(inst.Level) inst.Level.destroy();
+  const lvs = DIMS.levels;
+  inst.Level = new Chart(document.getElementById('chartLevel'), { type:'doughnut', data:{labels:lvs,datasets:[{data:lvs.map(l=>data.filter(d=>d.lv===l).length),backgroundColor:['#27ae60','#f39c12','#e74c3c','#95a5a6']}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'},datalabels:{color:'#fff',font:{weight:'bold'},formatter:v=>v||''}}} });
+  // Call type
+  if(inst.CallType) inst.CallType.destroy();
+  const cts = Object.keys(CT_DATA);
+  inst.CallType = new Chart(document.getElementById('chartCallType'), { type:'pie', data:{labels:cts,datasets:[{data:cts.map(k=>data.filter(d=>d.ct===k).length),backgroundColor:COLORS.slice(0,cts.length)}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}},datalabels:{color:'#fff',formatter:v=>v||''}}} });
+  // Deduct rank
+  if(inst.DeductRank) inst.DeductRank.destroy();
+  const dr = Object.entries(EMP_STATS).map(([k,v])=>({n:k,...v})).sort((a,b)=>b.deduct-a.deduct).slice(0,10).reverse();
+  if(dr.length) inst.DeductRank = new Chart(document.getElementById('chartDeductRank'), { type:'bar', data:{labels:dr.map(d=>d.n),datasets:[{label:'\u6263\u5206\u6761\u6570',data:dr.map(d=>d.deduct),backgroundColor:'#e74c3c',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',color:'#e74c3c',font:{weight:'bold'},formatter:v=>v||''}}} });
+  // Bonus rank
+  if(inst.BonusRank) inst.BonusRank.destroy();
+  const br = Object.entries(EMP_STATS).map(([k,v])=>({n:k,...v})).sort((a,b)=>b.bonus-a.bonus).slice(0,10).reverse();
+  if(br.length) inst.BonusRank = new Chart(document.getElementById('chartBonusRank'), { type:'bar', data:{labels:br.map(d=>d.n),datasets:[{label:'\u52a0\u5206\u6761\u6570',data:br.map(d=>d.bonus),backgroundColor:'#27ae60',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',color:'#27ae60',font:{weight:'bold'},formatter:v=>v||''}}} });
+  // Quadrant
+  if(inst.Quadrant) inst.Quadrant.destroy();
+  const eq = Object.entries(EMP_STATS), labs = eq.map(([k])=>k);
+  inst.Quadrant = new Chart(document.getElementById('chartQuadrant'), { type:'scatter', data:{datasets:[{label:'\u5458\u5de5',data:eq.map(([k,v])=>({x:v.deduct,y:v.bonus})),backgroundColor:eq.map(([,v])=>v.deduct>=3&&v.bonus>=2?'#e74c3c':(v.deduct<3&&v.bonus>=2?'#27ae60':(v.deduct>=3&&v.bonus<2?'#e67e22':'#95a5a6'))),pointRadius:8,pointHoverRadius:12}]}, options:{responsive:true,maintainAspectRatio:false,scales:{x:{title:{display:true,text:'\u6263\u5206\u6b21\u6570'},beginAtZero:true},y:{title:{display:true,text:'\u52a0\u5206\u6b21\u6570'},beginAtZero:true}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>labs[ctx.dataIndex]+': \u6263\u5206'+eq[ctx.dataIndex][1].deduct+'\u6761, \u52a0\u5206'+eq[ctx.dataIndex][1].bonus+'\u6761'}}}} }, {plugins:[{id:'ql',beforeDraw:function(c){var xa=c.scales.x,ya=c.scales.y,cx=c.ctx,xm=xa.getPixelForValue(2),ym=ya.getPixelForValue(2);cx.save();cx.setLineDash([5,5]);cx.strokeStyle='#aaa';cx.lineWidth=1;cx.beginPath();cx.moveTo(xm,ya.top);cx.lineTo(xm,ya.bottom);cx.stroke();cx.beginPath();cx.moveTo(xa.left,ym);cx.lineTo(xa.right,ym);cx.stroke();cx.restore();cx.font='11px sans-serif';cx.fillStyle='#999';cx.textAlign='center';cx.fillText('\u5c11\u6263\u5206\u591a\u52a0\u5206',xa.left+60,ym-10);cx.fillText('\u591a\u6263\u5206\u591a\u52a0\u5206',xa.right-60,ym-10);cx.fillText('\u5c11\u6263\u5206\u5c11\u52a0\u5206',xa.left+60,ya.bottom-15);cx.fillText('\u591a\u6263\u5206\u5c11\u52a0\u5206',xa.right-60,ya.bottom-15);}}]}]);
+  // Group compare
+  if(inst.GroupCompare) inst.GroupCompare.destroy();
+  const gps = DIMS.groups, gcolors = ['#2563EB','#DC2626','#F59E0B','#10B981','#8B5CF6'];
+  inst.GroupCompare = new Chart(document.getElementById('chartGroupCompare'), { type:'bar', data:{labels:['\u6263\u5206','\u52a0\u5206'],datasets:gps.map((g,i)=>({label:g,data:[data.filter(d=>d.g===g&&d.sc<0).length,data.filter(d=>d.g===g&&d.sc>0).length],backgroundColor:gcolors[i%gcolors.length]}))}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{position:'top'},datalabels:{color:'#333',font:{weight:'bold'},formatter:v=>v||''}}} });
+  // Group trend
+  if(inst.GroupTrend) inst.GroupTrend.destroy();
+  const gds = []; gps.forEach((g,i)=>{gds.push({label:g+'\u6263\u5206',data:m.map(x=>data.filter(d=>d.g===g&&d.m===x&&d.sc<0).length),borderColor:gcolors[i%gcolors.length],backgroundColor:gcolors[i%gcolors.length],tension:0.3,fill:false});gds.push({label:g+'\u52a0\u5206',data:m.map(x=>data.filter(d=>d.g===g&&d.m===x&&d.sc>0).length),borderColor:gcolors[i%gcolors.length],backgroundColor:gcolors[i%gcolors.length],tension:0.3,fill:false,borderDash:[5,5]});});
+  inst.GroupTrend = new Chart(document.getElementById('chartGroupTrend'), { type:'line', data:{labels:m.map(fmtMonth),datasets:gds}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{position:'top',labels:{font:{size:9}}},datalabels:{display:false}}} });
+  // ET rank
+  if(inst.EtRank) inst.EtRank.destroy();
+  const etr = Object.entries(ET_STATS).sort((a,b)=>b[1]-a[1]).slice(0,10).reverse();
+  if(etr.length) inst.EtRank = new Chart(document.getElementById('chartEtRank'), { type:'bar', data:{labels:etr.map(([k])=>k),datasets:[{label:'\u5dee\u9519\u6b21\u6570',data:etr.map(([,v])=>v),backgroundColor:'#e67e22',borderRadius:4}]}, options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'\u6b21\u6570'}}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',color:'#e67e22',font:{weight:'bold'},formatter:v=>v||''}}} });
+  // ET trend 2
+  if(inst.EtTrend2) inst.EtTrend2.destroy();
+  inst.EtTrend2 = new Chart(document.getElementById('chartEtTrend2'), { type:'line', data:{labels:m.map(fmtMonth),datasets:top5.map(([et],i)=>({label:et,data:m.map(x=>ET_MONTHLY[et]?(ET_MONTHLY[et][x]||0):0),borderColor:COLORS[i],backgroundColor:COLORS[i],tension:0.3,fill:false}))}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6b21\u6570'}}},plugins:{legend:{position:'top',labels:{font:{size:10}}},datalabels:{display:false}}} });
+  // Bmy
+  const bkeys = Object.keys(BMY_STATS);
+  if(bkeys.length===0) {
+    document.querySelector('#chartBmyCat').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px;">\u6682\u65e0\u4e0d\u6ee1\u610f\u4e13\u9879\u6570\u636e</p>';
   } else {
-    window._chBmy = new Chart(ctx, {
-      type: 'pie',
-      data: { labels: cats, datasets: [{ data: vals, backgroundColor: CHART_COLORS.slice(0, cats.length) }] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'right' }, datalabels: { color: '#fff', formatter: v => v||'' } }
-      }
-    });
+    if(inst.BmyCat) inst.BmyCat.destroy();
+    inst.BmyCat = new Chart(document.getElementById('chartBmyCat'), { type:'pie', data:{labels:bkeys,datasets:[{data:bkeys.map(c=>BMY_STATS[c]),backgroundColor:COLORS.slice(0,bkeys.length)}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'},datalabels:{color:'#fff',formatter:v=>v||''}}} });
   }
-  
-  // Bmy trend - skip for now if no data
-  const ctx2 = document.getElementById('chartBmyTrend').getContext('2d');
-  if (window._chBmyTrend) window._chBmyTrend.destroy();
-  if (cats.length === 0) {
-    document.querySelector('#chartBmyTrend').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px;">暂无不满意专项数据</p>';
-  }
+  // Employee tags
+  const allEmps = Object.entries(EMP_STATS).sort((a,b)=>b[1].deduct-a[1].deduct);
+  document.getElementById('empTags').innerHTML = allEmps.map(([k,v]) => '<span class="rank-item '+(v.deduct>=v.bonus?'deduct':'bonus')+'" onclick="showProfile(\''+k+'\')">'+k+' (\u6263'+v.deduct+'/\u52a0'+v.bonus+')</span>').join('');
 }
-
-// ===== INIT =====
+let selectedEmp = null;
+function showProfile(emp) {
+  selectedEmp = emp;
+  document.getElementById('profilePanel').style.display='block';
+  document.querySelectorAll('#empTags .rank-item').forEach(el => el.style.border='');
+  const found = [...document.querySelectorAll('#empTags .rank-item')].find(e => e.textContent.includes(emp));
+  if(found) found.style.border='2px solid #667eea';
+  if(inst.ProfileRadar) inst.ProfileRadar.destroy();
+  const ae = DIMS.ets, ed = EMP_ET_DIST[emp]||{}, ev = ae.map(et=>ed[et]||0), ta = ae.map(et=>Math.round(Object.values(EMP_ET_DIST).reduce((s,d)=>(s+(d[et]||0)),0)/Object.keys(EMP_ET_DIST).length*10)/10||0);
+  inst.ProfileRadar = new Chart(document.getElementById('chartProfileRadar'), { type:'radar', data:{labels:ae,datasets:[{label:emp,data:ev,borderColor:'#667eea',backgroundColor:'rgba(102,126,234,0.1)'},{label:'\u56e2\u961f\u5747\u503c',data:ta,borderColor:'#e74c3c',backgroundColor:'rgba(231,76,60,0.1)',borderDash:[5,5]}]}, options:{responsive:true,maintainAspectRatio:false,scales:{r:{beginAtZero:true,ticks:{stepSize:1}}},plugins:{legend:{position:'top'},datalabels:{display:false}}} });
+  if(inst.ProfileMonthly) inst.ProfileMonthly.destroy();
+  const md = EMP_MONTHLY[emp]||{};
+  inst.ProfileMonthly = new Chart(document.getElementById('chartProfileMonthly'), { type:'bar', data:{labels:m.map(fmtMonth),datasets:[{label:'\u6263\u5206',data:m.map(x=>(md[x]||{}).deduct||0),backgroundColor:'#e74c3c'},{label:'\u52a0\u5206',data:m.map(x=>(md[x]||{}).bonus||0),backgroundColor:'#27ae60'}]}, options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:'\u6761\u6570'}}},plugins:{legend:{position:'top'},datalabels:{display:false}}} });
+}
+function renderDetail() {
+  const data = getFiltered();
+  document.getElementById('detailCount').textContent = '\u5171 '+data.length+' \u6761\u8bb0\u5f55';
+  let html = '<table><thead><tr><th>\u6765\u6e90</th><th>\u6708\u4efd</th><th>\u5458\u5de5</th><th>\u5c0f\u7ec4</th><th>\u5f97\u5206</th><th>\u4e0d\u5408\u683c\u9879</th><th>\u611f\u77e5\u7b49\u7ea7</th><th>\u901a\u8bdd\u7c7b\u522b</th><th>\u62bd\u68c0\u4eba</th><th>\u65e5\u671f</th></tr></thead><tbody>';
+  data.forEach(d => { html += '<tr><td>'+(SRC_LABEL[d.s]||d.s)+'</td><td>'+d.m+'</td><td>'+d.e+'</td><td>'+d.g+'</td><td style="color:'+(d.sc<0?'#e74c3c':(d.sc>0?'#27ae60':'#999'))+'">'+d.sc+'</td><td>'+(d.et||'-')+'</td><td>'+(d.lv||'-')+'</td><td>'+(d.ct||'-')+'</td><td>'+(d.ch||'-')+'</td><td>'+(d.dt||'-')+'</td></tr>'; });
+  html += '</tbody></table>';
+  document.getElementById('detailTableWrap').innerHTML = html;
+}
 initFilters();
-applyFilters();
+renderAll();
 </script>
-<footer style="text-align:center;margin-top:30px;font-size:12px;color:#aaa;">数据更新方式：修改Excel后运行 refresh_all.py</footer>
+<footer style="text-align:center;margin-top:30px;font-size:12px;color:#aaa;">\u6570\u636e\u66f4\u65b0\u65b9\u5f0f\uff1a\u4fee\u6539Excel\u540e\u53cc\u51fb\u684c\u9762\u300c\u4e00\u952e\u5237\u65b0\u8d28\u68c0\u770b\u677f.bat\u300d</footer>
 </body>
-</html>'''
+</html>''')
 
-with open(HTML_PATH, 'w', encoding='utf-8') as f:
-    f.write(html)
-print('Dashboard generated:', HTML_PATH)
+print(f'Dashboard generated: {HTML_PATH}')
